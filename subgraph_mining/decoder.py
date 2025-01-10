@@ -161,14 +161,16 @@ def pattern_growth(dataset, task, args):
     x = int(time.time() - start_time)
     print(x // 60, "mins", x % 60, "secs")
 
-    # visualize out patterns
     count_by_size = defaultdict(int)
     for pattern in out_graphs:
         if args.node_anchored:
-            colors = ["red"] + ["blue"]*(len(pattern)-1)
-            nx.draw(pattern, node_color=colors, with_labels=True)
+            colors = ["red"] + ["blue"] * (len(pattern) - 1)
+            labels = {node: f"{node}\n{pattern.nodes[node].get('label', '')}" for node in pattern.nodes}
+            nx.draw(pattern, node_color=colors, labels=labels, with_labels=True)
         else:
-            nx.draw(pattern)
+            labels = {node: f"{node}\n{pattern.nodes[node].get('label', '')}" for node in pattern.nodes}
+            nx.draw(pattern, labels=labels, with_labels=True)
+
         print("Saving plots/cluster/{}-{}.png".format(len(pattern),
             count_by_size[len(pattern)]))
         plt.savefig("plots/cluster/{}-{}.png".format(len(pattern),
