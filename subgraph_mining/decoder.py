@@ -44,87 +44,32 @@ import pickle
 import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
 
-def prepare_nx_graph(g):
-    """Prepare NetworkX graph by ensuring proper node and edge attributes"""
-    cleaned_graph = nx.Graph()
-    
-    # Add nodes with id and label properties
-    for node in g.nodes():
-        node_attrs = {
-            'id': g.nodes[node].get('id', str(node)),
-            'label': g.nodes[node].get('label', 'default')
-        }
-        cleaned_graph.add_node(node, **node_attrs)
-    
-    # Add edges with source, target, and type properties
-    for u, v in g.edges():
-        edge_attrs = {
-            'source': u,
-            'target': v,
-            'type': g.edges[u, v].get('type', 'default')
-        }
-        cleaned_graph.add_edge(u, v, **edge_attrs)
-        
-    return cleaned_graph
-
-def batch_nx_graphs(graphs, anchors=None):
-    """Create a batch from a list of NetworkX graphs"""
-    # Clean and prepare graphs
-    prepared_graphs = [prepare_nx_graph(g) for g in graphs]
-    
-    # Convert to DeepSnap format with specific attributes
-    ds_graphs = []
-    for i, g in enumerate(prepared_graphs):
-        if anchors is not None:
-            # Add anchor information if provided
-            nx.set_node_attributes(g, {anchors[i]: True}, 'anchor')
-        
-        # Create DSGraph with specific edge and node attributes
-        ds_graph = DSGraph(g, 
-                          node_attrs=['id', 'label'],
-                          edge_attrs=['source', 'target', 'type'])
-        ds_graphs.append(ds_graph)
-    
-    return Batch.from_data_list(ds_graphs)
-
 def make_plant_dataset(size):
     generator = combined_syn.get_generator([size])
     random.seed(3001)
     np.random.seed(14853)
-    
-    # Generate pattern with proper attributes
+    # PATTERN 1
     pattern = generator.generate(size=10)
-    for node in pattern.nodes():
-        pattern.nodes[node]['id'] = str(node)
-        pattern.nodes[node]['label'] = 'pattern_node'
-    for u, v in pattern.edges():
-        pattern.edges[u, v]['type'] = 'pattern_edge'
-        
-    pattern = prepare_nx_graph(pattern)
+    # PATTERN 2
+    #pattern = nx.star_graph(9)
+    # PATTERN 3
+    #pattern = nx.complete_graph(10)
+    # PATTERN 4
+    #pattern = nx.Graph()
+    #pattern.add_edges_from([(1, 2), (2, 3), (3, 4), (4, 5), (5, 6),
+    #    (6, 7), (7, 2), (7, 8), (8, 9), (9, 10), (10, 6)])
     nx.draw(pattern, with_labels=True)
     plt.savefig("plots/cluster/plant-pattern.png")
     plt.close()
-    
     graphs = []
     for i in range(1000):
         graph = generator.generate()
-        # Add attributes to the generated graph
-        for node in graph.nodes():
-            graph.nodes[node]['id'] = f"{i}_{node}"
-            graph.nodes[node]['label'] = 'graph_node'
-        for u, v in graph.edges():
-            graph.edges[u, v]['type'] = 'graph_edge'
-            
         n_old = len(graph)
         graph = nx.disjoint_union(graph, pattern)
-        
-        # Add connecting edges with attributes
         for j in range(1, 3):
             u = random.randint(0, n_old - 1)
             v = random.randint(n_old, len(graph) - 1)
-            graph.add_edge(u, v, type='connecting_edge')
-            
-        graph = prepare_nx_graph(graph)
+            graph.add_edge(u, v)
         graphs.append(graph)
     return graphs
 
@@ -200,15 +145,11 @@ def pattern_growth(dataset, task, args):
     for i in range(len(neighs) // args.batch_size):
         top = (i+1)*args.batch_size
         with torch.no_grad():
-            try:
-                batch = batch_nx_graphs(neighs[i*args.batch_size:top],
-                    anchors=anchors[i*args.batch_size:top] if args.node_anchored else None)
-                emb = model.emb_model(batch)
-                emb = emb.to(torch.device("cpu"))
-                embs.append(emb)
-            except Exception as e:
-                print(f"Warning: Batch processing failed for batch {i}: {str(e)}")
-                continue
+            batch = utils.batch_nx_graphs(neighs[i*args.batch_size:top],
+                anchors=anchors if args.node_anchored else None)
+            emb = model.emb_model(batch)
+            emb = emb.to(torch.device("cpu"))
+        embs.append(emb)
 
     if args.analyze:
         embs_np = torch.stack(embs).numpy()
@@ -229,42 +170,50 @@ def pattern_growth(dataset, task, args):
     x = int(time.time() - start_time)
     print(x // 60, "mins", x % 60, "secs")
 
+    # visualize out patterns with properties
     count_by_size = defaultdict(int)
     for pattern in out_graphs:
-        plt.figure(figsize=(12, 8))
-        
-        labels = {
-            node: f"ID: {pattern.nodes[node].get('id', 'N/A')}\n"
-                  f"Label: {pattern.nodes[node].get('label', 'N/A')}"
-            for node in pattern.nodes
-        }
-        
+        plt.figure(figsize=(10, 8))
         pos = nx.spring_layout(pattern)
         
         if args.node_anchored:
-            colors = ["red"] + ["blue"] * (len(pattern) - 1)
+            colors = ["red"] + ["blue"]*(len(pattern)-1)
             nx.draw_networkx_nodes(pattern, pos, node_color=colors)
         else:
-            nx.draw_networkx_nodes(pattern, pos, node_color='lightblue')
+            nx.draw_networkx_nodes(pattern, pos)
         
+        # Add node labels with properties
+        node_labels = {}
+        for node in pattern.nodes():
+            label_parts = [f"ID: {node}"]
+            if 'label' in pattern.nodes[node]:
+                label_parts.append(f"Label: {pattern.nodes[node]['label']}")
+            node_labels[node] = '\n'.join(label_parts)
+        nx.draw_networkx_labels(pattern, pos, node_labels)
+        
+        # Draw edges
         nx.draw_networkx_edges(pattern, pos)
-        nx.draw_networkx_labels(pattern, pos, labels, font_size=8)
         
-        edge_labels = {
-            (u, v): pattern.edges[u, v].get('type', 'N/A')
-            for u, v in pattern.edges
-        }
-        nx.draw_networkx_edge_labels(pattern, pos, edge_labels, font_size=8)
-        
-        plt.title(f"Pattern Size: {len(pattern)}")
-        plt.axis('off')
-        
-        output_path = "plots/cluster/{}-{}".format(len(pattern), count_by_size[len(pattern)])
-        plt.savefig(f"{output_path}.png", dpi=300, bbox_inches='tight')
-        plt.savefig(f"{output_path}.pdf", bbox_inches='tight')
+        # Add edge labels for relationship types
+        edge_labels = {}
+        for u, v in pattern.edges():
+            if 'type' in pattern.edges[u, v]:
+                edge_labels[(u, v)] = pattern.edges[u, v]['type']
+        if edge_labels:
+            nx.draw_networkx_edge_labels(pattern, pos, edge_labels)
+
+        plt.title(f"Pattern (size: {len(pattern)})")
+        plt.savefig("plots/cluster/{}-{}.png".format(len(pattern),
+            count_by_size[len(pattern)]), bbox_inches='tight')
+        plt.savefig("plots/cluster/{}-{}.pdf".format(len(pattern),
+            count_by_size[len(pattern)]), bbox_inches='tight')
         plt.close()
-        
         count_by_size[len(pattern)] += 1
+
+        # Print pattern details
+        print(f"\nPattern of size {len(pattern)}:")
+        print("Nodes:", {n: pattern.nodes[n].get('label', 'N/A') for n in pattern.nodes()})
+        print("Edges:", {(u,v): pattern.edges[u,v].get('type', 'N/A') for u,v in pattern.edges()})
 
     if not os.path.exists("results"):
         os.makedirs("results")
@@ -278,25 +227,18 @@ def main():
     parser = argparse.ArgumentParser(description='Decoder arguments')
     parse_encoder(parser)
     parse_decoder(parser)
+    # Add custom pickle file argument
+    parser.add_argument('--custom_graph', type=str, default=None,
+                      help='Path to custom graph pickle file')
     args = parser.parse_args()
 
     print("Using dataset {}".format(args.dataset))
-    task = 'graph'  # Default task type
-    
-    if args.dataset.endswith('.pkl'):
-        try:
-            with open(args.dataset, 'rb') as f:
-                graphs = pickle.load(f)
-            if isinstance(graphs, list):
-                dataset = graphs
-            elif isinstance(graphs, nx.Graph):
-                dataset = [graphs]
-            else:
-                raise ValueError(f"Unsupported data format in {args.dataset}")
-            print(f"Loaded {len(dataset)} graphs from {args.dataset}")
-        except Exception as e:
-            print(f"Error loading pickle file: {str(e)}")
-            return
+    if args.custom_graph:
+        print(f"Loading custom graph from {args.custom_graph}")
+        with open(args.custom_graph, 'rb') as f:
+            graph = pickle.load(f)
+        dataset = [graph]
+        task = 'graph'
     elif args.dataset == 'enzymes':
         dataset = TUDataset(root='/tmp/ENZYMES', name='ENZYMES')
         task = 'graph'
@@ -342,7 +284,7 @@ def main():
         dataset = make_plant_dataset(size)
         task = 'graph'
 
-    pattern_growth(dataset, task, args) 
+    pattern_growth(dataset, task, args)
 
 if __name__ == '__main__':
     main()

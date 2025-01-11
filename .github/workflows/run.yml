@@ -36,8 +36,6 @@ jobs:
           cache-to: |
             type=local,dest=/tmp/.buildx-cache-new,mode=max
 
-      # Temp fix for growing cache size
-      # https://github.com/docker/build-push-action/issues/252
       - name: Move cache
         run: |
           rm -rf /tmp/.buildx-cache
@@ -49,14 +47,14 @@ jobs:
             -v ${{ github.workspace }}:/app \
             decoder-image:latest \
             python -m subgraph_mining.decoder \
-            --dataset=graph.pkl \
-            --node_anchored
+            --custom_graph=/app/graph.pkl
 
-      - name: Upload plots as artifact
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: decoder-plots
+          name: decoder-results
           path: |
-            plots/
-            results/
+            plots/cluster/*.png
+            plots/cluster/*.pdf
+            results/patterns.pkl
           retention-days: 7
