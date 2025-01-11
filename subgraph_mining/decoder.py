@@ -44,6 +44,30 @@ import pickle
 import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
 
+def preprocess_graph_for_deepsnap(graph):
+    """Convert Neo4j graph to a format compatible with DeepSnap."""
+    processed_graph = nx.Graph()
+    
+    # Add nodes with features
+    for node, data in graph.nodes(data=True):
+        # Convert node label to a numeric feature if it exists
+        if 'label' in data:
+            # Create a simple numeric encoding for the label
+            processed_graph.add_node(node, x=1)  # Default feature
+        else:
+            processed_graph.add_node(node, x=1)  # Default feature for unlabeled nodes
+            
+    # Add edges with features
+    for u, v, data in graph.edges(data=True):
+        # Store original attributes in a separate dictionary for later use
+        edge_data = {k: str(v) for k, v in data.items()}
+        # Add edge with a default feature
+        processed_graph.add_edge(u, v, edge_attr=1)
+        # Store original attributes
+        processed_graph.edges[u, v]['original_attrs'] = edge_data
+        
+    return processed_graph
+
 def make_plant_dataset(size):
     generator = combined_syn.get_generator([size])
     random.seed(3001)
@@ -176,29 +200,36 @@ def pattern_growth(dataset, task, args):
         plt.figure(figsize=(10, 8))
         pos = nx.spring_layout(pattern)
         
+        # Get original attributes if available
+        original_graph = dataset[0].graph.get('original', None)
+        
         if args.node_anchored:
             colors = ["red"] + ["blue"]*(len(pattern)-1)
             nx.draw_networkx_nodes(pattern, pos, node_color=colors)
         else:
             nx.draw_networkx_nodes(pattern, pos)
         
-        # Add node labels with properties
+        # Add node labels
         node_labels = {}
         for node in pattern.nodes():
             label_parts = [f"ID: {node}"]
-            if 'label' in pattern.nodes[node]:
-                label_parts.append(f"Label: {pattern.nodes[node]['label']}")
+            if original_graph and node in original_graph:
+                if 'label' in original_graph.nodes[node]:
+                    label_parts.append(f"Label: {original_graph.nodes[node]['label']}")
             node_labels[node] = '\n'.join(label_parts)
         nx.draw_networkx_labels(pattern, pos, node_labels)
         
         # Draw edges
         nx.draw_networkx_edges(pattern, pos)
         
-        # Add edge labels for relationship types
+        # Add edge labels
         edge_labels = {}
         for u, v in pattern.edges():
-            if 'type' in pattern.edges[u, v]:
-                edge_labels[(u, v)] = pattern.edges[u, v]['type']
+            # Try to get original edge attributes
+            if 'original_attrs' in pattern.edges[u, v]:
+                attrs = pattern.edges[u, v]['original_attrs']
+                if 'type' in attrs:
+                    edge_labels[(u, v)] = attrs['type']
         if edge_labels:
             nx.draw_networkx_edge_labels(pattern, pos, edge_labels)
 
@@ -227,7 +258,6 @@ def main():
     parser = argparse.ArgumentParser(description='Decoder arguments')
     parse_encoder(parser)
     parse_decoder(parser)
-    # Add custom pickle file argument
     parser.add_argument('--custom_graph', type=str, default=None,
                       help='Path to custom graph pickle file')
     args = parser.parse_args()
@@ -236,7 +266,11 @@ def main():
     if args.custom_graph:
         print(f"Loading custom graph from {args.custom_graph}")
         with open(args.custom_graph, 'rb') as f:
-            graph = pickle.load(f)
+            original_graph = pickle.load(f)
+            # Preprocess the graph for DeepSnap
+            graph = preprocess_graph_for_deepsnap(original_graph)
+            # Store original graph for visualization
+            graph.graph['original'] = original_graph
         dataset = [graph]
         task = 'graph'
     elif args.dataset == 'enzymes':
