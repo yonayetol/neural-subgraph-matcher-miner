@@ -45,25 +45,28 @@ import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
 
 def preprocess_graph_for_deepsnap(graph):
-    """Convert Neo4j graph to a format compatible with DeepSnap."""
+    """Convert Neo4j graph to a format compatible with DeepSnap.
+    
+    Args:
+        graph: NetworkX graph object with potentially complex attributes
+        
+    Returns:
+        NetworkX graph with simplified numeric features suitable for DeepSnap
+    """
     processed_graph = nx.Graph()
     
-    # Add nodes with features
+    # Add nodes with numeric features
     for node, data in graph.nodes(data=True):
-        # Convert node label to a numeric feature if it exists
-        if 'label' in data:
-            # Create a simple numeric encoding for the label
-            processed_graph.add_node(node, x=1)  # Default feature
-        else:
-            processed_graph.add_node(node, x=1)  # Default feature for unlabeled nodes
+        # Store a simple numeric feature (1) for each node
+        processed_graph.add_node(node, x=torch.tensor([1.0]))
             
-    # Add edges with features
+    # Add edges with numeric features
     for u, v, data in graph.edges(data=True):
-        # Store original attributes in a separate dictionary for later use
+        # Store original attributes separately
         edge_data = {k: str(v) for k, v in data.items()}
-        # Add edge with a default feature
-        processed_graph.add_edge(u, v, edge_attr=1)
-        # Store original attributes
+        # Add edge with required numeric edge attribute
+        processed_graph.add_edge(u, v, edge_attr=torch.tensor([1.0]))
+        # Store original attributes in a separate dictionary
         processed_graph.edges[u, v]['original_attrs'] = edge_data
         
     return processed_graph
