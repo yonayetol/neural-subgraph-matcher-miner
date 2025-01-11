@@ -51,24 +51,44 @@ def preprocess_graph_for_deepsnap(graph):
         graph: NetworkX graph object with potentially complex attributes
         
     Returns:
-        NetworkX graph with simplified numeric features suitable for DeepSnap
+        NetworkX graph with features formatted specifically for DeepSnap
     """
     processed_graph = nx.Graph()
     
-    # Add nodes with numeric features
-    for node, data in graph.nodes(data=True):
-        # Store a simple numeric feature (1) for each node
-        processed_graph.add_node(node, x=torch.tensor([1.0]))
+    # Add nodes with features
+    for node in graph.nodes():
+        # Store node features as float tensor
+        processed_graph.add_node(node, x=torch.tensor([[1.0]], dtype=torch.float))
             
-    # Add edges with numeric features
-    for u, v, data in graph.edges(data=True):
-        # Store original attributes separately
-        edge_data = {k: str(v) for k, v in data.items()}
-        # Add edge with required numeric edge attribute
-        processed_graph.add_edge(u, v, edge_attr=torch.tensor([1.0]))
-        # Store original attributes in a separate dictionary
-        processed_graph.edges[u, v]['original_attrs'] = edge_data
+    # Add edges with features
+    edge_index = []
+    edge_attr = []
+    
+    for u, v in graph.edges():
+        # Add edge to processed graph without attributes first
+        processed_graph.add_edge(u, v)
         
+        # Store edge endpoints
+        edge_index.append([u, v])
+        
+        # Store a default edge feature
+        edge_attr.append([1.0])
+        
+        # Store original attributes separately if they exist
+        if graph.edges[u, v]:
+            processed_graph.edges[u, v]['original_attrs'] = {
+                k: str(v) for k, v in graph.edges[u, v].items()
+            }
+    
+    # Convert edge information to tensors and store in graph object
+    if edge_index:
+        edge_index = torch.tensor(edge_index, dtype=torch.long).t()
+        edge_attr = torch.tensor(edge_attr, dtype=torch.float)
+        
+        # Store these as graph-level attributes
+        processed_graph.graph['edge_index'] = edge_index
+        processed_graph.graph['edge_attr'] = edge_attr
+    
     return processed_graph
 
 def make_plant_dataset(size):
