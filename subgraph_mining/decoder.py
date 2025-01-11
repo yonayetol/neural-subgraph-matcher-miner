@@ -163,21 +163,49 @@ def pattern_growth(dataset, task, args):
 
     count_by_size = defaultdict(int)
     for pattern in out_graphs:
+        plt.figure(figsize=(12, 8))  # Larger figure for better readability
+        
+        # Prepare node labels with id and label information
+        labels = {
+            node: f"ID: {pattern.nodes[node].get('id', 'N/A')}\n"
+                  f"Label: {pattern.nodes[node].get('label', 'N/A')}"
+            for node in pattern.nodes
+        }
+        
+        # Create position layout
+        pos = nx.spring_layout(pattern)
+        
         if args.node_anchored:
+            # Draw nodes
             colors = ["red"] + ["blue"] * (len(pattern) - 1)
-            labels = {node: f"{node}\n{pattern.nodes[node].get('label', '')}" for node in pattern.nodes}
-            nx.draw(pattern, node_color=colors, labels=labels, with_labels=True)
+            nx.draw_networkx_nodes(pattern, pos, node_color=colors)
         else:
-            labels = {node: f"{node}\n{pattern.nodes[node].get('label', '')}" for node in pattern.nodes}
-            nx.draw(pattern, labels=labels, with_labels=True)
-
-        print("Saving plots/cluster/{}-{}.png".format(len(pattern),
-            count_by_size[len(pattern)]))
-        plt.savefig("plots/cluster/{}-{}.png".format(len(pattern),
-            count_by_size[len(pattern)]))
-        plt.savefig("plots/cluster/{}-{}.pdf".format(len(pattern),
-            count_by_size[len(pattern)]))
+            # Draw nodes
+            nx.draw_networkx_nodes(pattern, pos, node_color='lightblue')
+        
+        # Draw edges and edge labels
+        nx.draw_networkx_edges(pattern, pos)
+        
+        # Add node labels
+        nx.draw_networkx_labels(pattern, pos, labels, font_size=8)
+        
+        # Add edge labels (relationship types)
+        edge_labels = {
+            (u, v): pattern.edges[u, v].get('type', 'N/A')
+            for u, v in pattern.edges
+        }
+        nx.draw_networkx_edge_labels(pattern, pos, edge_labels, font_size=8)
+        
+        # Adjust layout
+        plt.title(f"Pattern Size: {len(pattern)}")
+        plt.axis('off')
+        
+        # Save with higher DPI for better quality
+        output_path = "plots/cluster/{}-{}".format(len(pattern), count_by_size[len(pattern)])
+        plt.savefig(f"{output_path}.png", dpi=300, bbox_inches='tight')
+        plt.savefig(f"{output_path}.pdf", bbox_inches='tight')
         plt.close()
+        
         count_by_size[len(pattern)] += 1
 
     if not os.path.exists("results"):
