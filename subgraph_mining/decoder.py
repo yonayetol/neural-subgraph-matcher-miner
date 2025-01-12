@@ -203,25 +203,6 @@ def main():
     parse_encoder(parser)
     parse_decoder(parser)
     
-    # Set default arguments
-    parser.set_defaults(
-        method_type="order",
-        search_strategy="greedy",
-        hidden_dim=64,
-        max_pattern_size=10,
-        min_pattern_size=3,
-        n_trials=1000,
-        model_path="path_to_model.pt",
-        out_path="results/discovered_patterns.pkl",
-        analyze=False,
-        node_anchored=False,
-        sample_method="radial",
-        radius=2,
-        batch_size=32,
-        use_whole_graphs=False,
-        subgraph_sample_size=0
-    )
-    
     args = parser.parse_args()
 
     print("Using dataset {}".format(args.dataset))
