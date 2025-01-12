@@ -3,6 +3,7 @@ import csv
 from itertools import combinations
 import time
 import os
+import pickle
 
 from deepsnap.batch import Batch
 import numpy as np
@@ -44,67 +45,11 @@ import pickle
 import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
 
-def preprocess_graph_for_deepsnap(graph):
-    """Convert Neo4j graph to a format compatible with DeepSnap.
-    
-    Args:
-        graph: NetworkX graph object with potentially complex attributes
-        
-    Returns:
-        NetworkX graph with features formatted specifically for DeepSnap
-    """
-    processed_graph = nx.Graph()
-    
-    # Add nodes with features
-    for node in graph.nodes():
-        # Store node features as float tensor
-        processed_graph.add_node(node, x=torch.tensor([[1.0]], dtype=torch.float))
-            
-    # Add edges with features
-    edge_index = []
-    edge_attr = []
-    
-    for u, v in graph.edges():
-        # Add edge to processed graph without attributes first
-        processed_graph.add_edge(u, v)
-        
-        # Store edge endpoints
-        edge_index.append([u, v])
-        
-        # Store a default edge feature
-        edge_attr.append([1.0])
-        
-        # Store original attributes separately if they exist
-        if graph.edges[u, v]:
-            processed_graph.edges[u, v]['original_attrs'] = {
-                k: str(v) for k, v in graph.edges[u, v].items()
-            }
-    
-    # Convert edge information to tensors and store in graph object
-    if edge_index:
-        edge_index = torch.tensor(edge_index, dtype=torch.long).t()
-        edge_attr = torch.tensor(edge_attr, dtype=torch.float)
-        
-        # Store these as graph-level attributes
-        processed_graph.graph['edge_index'] = edge_index
-        processed_graph.graph['edge_attr'] = edge_attr
-    
-    return processed_graph
-
 def make_plant_dataset(size):
     generator = combined_syn.get_generator([size])
     random.seed(3001)
     np.random.seed(14853)
-    # PATTERN 1
     pattern = generator.generate(size=10)
-    # PATTERN 2
-    #pattern = nx.star_graph(9)
-    # PATTERN 3
-    #pattern = nx.complete_graph(10)
-    # PATTERN 4
-    #pattern = nx.Graph()
-    #pattern.add_edges_from([(1, 2), (2, 3), (3, 4), (4, 5), (5, 6),
-    #    (6, 7), (7, 2), (7, 8), (8, 9), (9, 10), (10, 6)])
     nx.draw(pattern, with_labels=True)
     plt.savefig("plots/cluster/plant-pattern.png")
     plt.close()
@@ -148,6 +93,7 @@ def pattern_growth(dataset, task, args):
         if not type(graph) == nx.Graph:
             graph = pyg_utils.to_networkx(graph).to_undirected()
         graphs.append(graph)
+    
     if args.use_whole_graphs:
         neighs = graphs
     else:
@@ -166,25 +112,31 @@ def pattern_growth(dataset, task, args):
                             neigh = random.sample(neigh, min(len(neigh),
                                 args.subgraph_sample_size))
                     if len(neigh) > 1:
-                        neigh = graph.subgraph(neigh)
+                        subgraph = graph.subgraph(neigh)
                         if args.subgraph_sample_size != 0:
-                            neigh = neigh.subgraph(max(
-                                nx.connected_components(neigh), key=len))
-                        neigh = nx.convert_node_labels_to_integers(neigh)
-                        neigh.add_edge(0, 0)
-                        neighs.append(neigh)
+                            subgraph = subgraph.subgraph(max(
+                                nx.connected_components(subgraph), key=len))
+                        # Preserve node and edge attributes during relabeling
+                        mapping = {old: new for new, old in enumerate(subgraph.nodes())}
+                        subgraph = nx.relabel_nodes(subgraph, mapping)
+                        subgraph.add_edge(0, 0)
+                        neighs.append(subgraph)
+                        if args.node_anchored:
+                            anchors.append(0)
         elif args.sample_method == "tree":
             start_time = time.time()
             for j in tqdm(range(args.n_neighborhoods)):
                 graph, neigh = utils.sample_neigh(graphs,
                     random.randint(args.min_neighborhood_size,
                         args.max_neighborhood_size))
-                neigh = graph.subgraph(neigh)
-                neigh = nx.convert_node_labels_to_integers(neigh)
-                neigh.add_edge(0, 0)
-                neighs.append(neigh)
+                subgraph = graph.subgraph(neigh)
+                # Preserve node and edge attributes during relabeling
+                mapping = {old: new for new, old in enumerate(subgraph.nodes())}
+                subgraph = nx.relabel_nodes(subgraph, mapping)
+                subgraph.add_edge(0, 0)
+                neighs.append(subgraph)
                 if args.node_anchored:
-                    anchors.append(0)   # after converting labels, 0 will be anchor
+                    anchors.append(0)
 
     embs = []
     if len(neighs) % args.batch_size != 0:
@@ -217,57 +169,26 @@ def pattern_growth(dataset, task, args):
     x = int(time.time() - start_time)
     print(x // 60, "mins", x % 60, "secs")
 
-    # visualize out patterns with properties
+    # Save patterns with original Neo4j information if available
     count_by_size = defaultdict(int)
     for pattern in out_graphs:
-        plt.figure(figsize=(10, 8))
-        pos = nx.spring_layout(pattern)
-        
-        # Get original attributes if available
-        original_graph = dataset[0].graph.get('original', None)
-        
         if args.node_anchored:
             colors = ["red"] + ["blue"]*(len(pattern)-1)
-            nx.draw_networkx_nodes(pattern, pos, node_color=colors)
+            nx.draw(pattern, node_color=colors, with_labels=True)
         else:
-            nx.draw_networkx_nodes(pattern, pos)
+            nx.draw(pattern, with_labels=True)
         
-        # Add node labels
-        node_labels = {}
-        for node in pattern.nodes():
-            label_parts = [f"ID: {node}"]
-            if original_graph and node in original_graph:
-                if 'label' in original_graph.nodes[node]:
-                    label_parts.append(f"Label: {original_graph.nodes[node]['label']}")
-            node_labels[node] = '\n'.join(label_parts)
-        nx.draw_networkx_labels(pattern, pos, node_labels)
+        # Add pattern metadata to filename if from Neo4j
+        pattern_info = f"{len(pattern)}-{count_by_size[len(pattern)]}"
+        if any('label' in pattern.nodes[n] for n in pattern.nodes()):
+            node_labels = [pattern.nodes[n].get('label', '') for n in pattern.nodes()]
+            edge_types = [pattern.edges[e].get('type', '') for e in pattern.edges()]
+            pattern_info += f"-{'-'.join(node_labels)}-{'-'.join(edge_types)}"
         
-        # Draw edges
-        nx.draw_networkx_edges(pattern, pos)
-        
-        # Add edge labels
-        edge_labels = {}
-        for u, v in pattern.edges():
-            # Try to get original edge attributes
-            if 'original_attrs' in pattern.edges[u, v]:
-                attrs = pattern.edges[u, v]['original_attrs']
-                if 'type' in attrs:
-                    edge_labels[(u, v)] = attrs['type']
-        if edge_labels:
-            nx.draw_networkx_edge_labels(pattern, pos, edge_labels)
-
-        plt.title(f"Pattern (size: {len(pattern)})")
-        plt.savefig("plots/cluster/{}-{}.png".format(len(pattern),
-            count_by_size[len(pattern)]), bbox_inches='tight')
-        plt.savefig("plots/cluster/{}-{}.pdf".format(len(pattern),
-            count_by_size[len(pattern)]), bbox_inches='tight')
+        plt.savefig(f"plots/cluster/{pattern_info}.png")
+        plt.savefig(f"plots/cluster/{pattern_info}.pdf")
         plt.close()
         count_by_size[len(pattern)] += 1
-
-        # Print pattern details
-        print(f"\nPattern of size {len(pattern)}:")
-        print("Nodes:", {n: pattern.nodes[n].get('label', 'N/A') for n in pattern.nodes()})
-        print("Edges:", {(u,v): pattern.edges[u,v].get('type', 'N/A') for u,v in pattern.edges()})
 
     if not os.path.exists("results"):
         os.makedirs("results")
@@ -281,21 +202,35 @@ def main():
     parser = argparse.ArgumentParser(description='Decoder arguments')
     parse_encoder(parser)
     parse_decoder(parser)
-    parser.add_argument('--custom_graph', type=str, default=None,
-                      help='Path to custom graph pickle file')
+    
+    # Set default arguments
+    parser.set_defaults(
+        method_type="order",
+        search_strategy="greedy",
+        hidden_dim=64,
+        max_pattern_size=10,
+        min_pattern_size=3,
+        n_trials=1000,
+        model_path="path_to_model.pt",
+        out_path="results/discovered_patterns.pkl",
+        analyze=False,
+        node_anchored=False,
+        sample_method="radial",
+        radius=2,
+        batch_size=32,
+        use_whole_graphs=False,
+        subgraph_sample_size=0
+    )
+    
     args = parser.parse_args()
 
     print("Using dataset {}".format(args.dataset))
-    if args.custom_graph:
-        print(f"Loading custom graph from {args.custom_graph}")
-        with open(args.custom_graph, 'rb') as f:
-            original_graph = pickle.load(f)
-            # Preprocess the graph for DeepSnap
-            graph = preprocess_graph_for_deepsnap(original_graph)
-            # Store original graph for visualization
-            graph.graph['original'] = original_graph
-        dataset = [graph]
+    if args.dataset.endswith('.pkl'):
+        # Load Neo4j exported graph
+        with open(args.dataset, 'rb') as f:
+            dataset = [pickle.load(f)]
         task = 'graph'
+        print(f"Loaded Neo4j graph with {dataset[0].number_of_nodes()} nodes and {dataset[0].number_of_edges()} edges")
     elif args.dataset == 'enzymes':
         dataset = TUDataset(root='/tmp/ENZYMES', name='ENZYMES')
         task = 'graph'
@@ -341,7 +276,7 @@ def main():
         dataset = make_plant_dataset(size)
         task = 'graph'
 
-    pattern_growth(dataset, task, args)
+    pattern_growth(dataset, task, args) 
 
 if __name__ == '__main__':
     main()
