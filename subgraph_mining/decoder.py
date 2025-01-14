@@ -2,7 +2,6 @@ import argparse
 import csv
 from itertools import combinations
 import time
-import os
 import pickle
 
 from deepsnap.batch import Batch
@@ -45,7 +44,7 @@ import pickle
 import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
 
-def make_plant_dataset(siz):
+def make_plant_dataset(size):
     generator = combined_syn.get_generator([size])
     random.seed(3001)
     np.random.seed(14853)
