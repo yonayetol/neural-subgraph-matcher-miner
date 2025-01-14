@@ -2,6 +2,7 @@ import argparse
 import csv
 from itertools import combinations
 import time
+import os
 import pickle
 
 from deepsnap.batch import Batch
