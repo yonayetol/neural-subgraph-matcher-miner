@@ -3,7 +3,6 @@ import csv
 from itertools import combinations
 import time
 import os
-import pickle
 
 from deepsnap.batch import Batch
 import numpy as np
@@ -49,7 +48,16 @@ def make_plant_dataset(size):
     generator = combined_syn.get_generator([size])
     random.seed(3001)
     np.random.seed(14853)
+    # PATTERN 1
     pattern = generator.generate(size=10)
+    # PATTERN 2
+    #pattern = nx.star_graph(9)
+    # PATTERN 3
+    #pattern = nx.complete_graph(10)
+    # PATTERN 4
+    #pattern = nx.Graph()
+    #pattern.add_edges_from([(1, 2), (2, 3), (3, 4), (4, 5), (5, 6),
+    #    (6, 7), (7, 2), (7, 8), (8, 9), (9, 10), (10, 6)])
     nx.draw(pattern, with_labels=True)
     plt.savefig("plots/cluster/plant-pattern.png")
     plt.close()
@@ -93,7 +101,6 @@ def pattern_growth(dataset, task, args):
         if not type(graph) == nx.Graph:
             graph = pyg_utils.to_networkx(graph).to_undirected()
         graphs.append(graph)
-    
     if args.use_whole_graphs:
         neighs = graphs
     else:
@@ -112,42 +119,38 @@ def pattern_growth(dataset, task, args):
                             neigh = random.sample(neigh, min(len(neigh),
                                 args.subgraph_sample_size))
                     if len(neigh) > 1:
-                        subgraph = graph.subgraph(neigh)
+                        neigh = graph.subgraph(neigh)
                         if args.subgraph_sample_size != 0:
-                            subgraph = subgraph.subgraph(max(
-                                nx.connected_components(subgraph), key=len))
-                        # Preserve node and edge attributes during relabeling
-                        mapping = {old: new for new, old in enumerate(subgraph.nodes())}
-                        subgraph = nx.relabel_nodes(subgraph, mapping)
-                        subgraph.add_edge(0, 0)
-                        neighs.append(subgraph)
-                        if args.node_anchored:
-                            anchors.append(0)
+                            neigh = neigh.subgraph(max(
+                                nx.connected_components(neigh), key=len))
+                        neigh = nx.convert_node_labels_to_integers(neigh)
+                        neigh.add_edge(0, 0)
+                        neighs.append(neigh)
         elif args.sample_method == "tree":
             start_time = time.time()
             for j in tqdm(range(args.n_neighborhoods)):
                 graph, neigh = utils.sample_neigh(graphs,
                     random.randint(args.min_neighborhood_size,
                         args.max_neighborhood_size))
-                subgraph = graph.subgraph(neigh)
-                # Preserve node and edge attributes during relabeling
-                mapping = {old: new for new, old in enumerate(subgraph.nodes())}
-                subgraph = nx.relabel_nodes(subgraph, mapping)
-                subgraph.add_edge(0, 0)
-                neighs.append(subgraph)
+                neigh = graph.subgraph(neigh)
+                neigh = nx.convert_node_labels_to_integers(neigh)
+                neigh.add_edge(0, 0)
+                neighs.append(neigh)
                 if args.node_anchored:
-                    anchors.append(0)
+                    anchors.append(0)   # after converting labels, 0 will be anchor
 
     embs = []
     if len(neighs) % args.batch_size != 0:
         print("WARNING: number of graphs not multiple of batch size")
     for i in range(len(neighs) // args.batch_size):
+        #top = min(len(neighs), (i+1)*args.batch_size)
         top = (i+1)*args.batch_size
         with torch.no_grad():
             batch = utils.batch_nx_graphs(neighs[i*args.batch_size:top],
                 anchors=anchors if args.node_anchored else None)
             emb = model.emb_model(batch)
             emb = emb.to(torch.device("cpu"))
+
         embs.append(emb)
 
     if args.analyze:
@@ -169,24 +172,20 @@ def pattern_growth(dataset, task, args):
     x = int(time.time() - start_time)
     print(x // 60, "mins", x % 60, "secs")
 
-    # Save patterns with original Neo4j information if available
+    # visualize out patterns
     count_by_size = defaultdict(int)
     for pattern in out_graphs:
         if args.node_anchored:
             colors = ["red"] + ["blue"]*(len(pattern)-1)
             nx.draw(pattern, node_color=colors, with_labels=True)
         else:
-            nx.draw(pattern, with_labels=True)
-        
-        # Add pattern metadata to filename if from Neo4j
-        pattern_info = f"{len(pattern)}-{count_by_size[len(pattern)]}"
-        if any('label' in pattern.nodes[n] for n in pattern.nodes()):
-            node_labels = [pattern.nodes[n].get('label', '') for n in pattern.nodes()]
-            edge_types = [pattern.edges[e].get('type', '') for e in pattern.edges()]
-            pattern_info += f"-{'-'.join(node_labels)}-{'-'.join(edge_types)}"
-        
-        plt.savefig(f"plots/cluster/{pattern_info}.png")
-        plt.savefig(f"plots/cluster/{pattern_info}.pdf")
+            nx.draw(pattern)
+        print("Saving plots/cluster/{}-{}.png".format(len(pattern),
+            count_by_size[len(pattern)]))
+        plt.savefig("plots/cluster/{}-{}.png".format(len(pattern),
+            count_by_size[len(pattern)]))
+        plt.savefig("plots/cluster/{}-{}.pdf".format(len(pattern),
+            count_by_size[len(pattern)]))
         plt.close()
         count_by_size[len(pattern)] += 1
 
@@ -202,17 +201,11 @@ def main():
     parser = argparse.ArgumentParser(description='Decoder arguments')
     parse_encoder(parser)
     parse_decoder(parser)
-    
     args = parser.parse_args()
+    args.dataset = "enzymes"
 
     print("Using dataset {}".format(args.dataset))
-    if args.dataset.endswith('.pkl'):
-        # Load Neo4j exported graph
-        with open(args.dataset, 'rb') as f:
-            dataset = [pickle.load(f)]
-        task = 'graph'
-        print(f"Loaded Neo4j graph with {dataset[0].number_of_nodes()} nodes and {dataset[0].number_of_edges()} edges")
-    elif args.dataset == 'enzymes':
+    if args.dataset == 'enzymes':
         dataset = TUDataset(root='/tmp/ENZYMES', name='ENZYMES')
         task = 'graph'
     elif args.dataset == 'cox2':
