@@ -66,8 +66,8 @@ def make_plant_dataset(size):
     return graphs
 
 def pattern_growth(dataset, task, args):
-    # init model
     start_time = time.time()
+    # init model
     if args.method_type == "end2end":
         model = models.End2EndOrder(1, args.hidden_dim, args)
     elif args.method_type == "mlp":
@@ -90,17 +90,9 @@ def pattern_growth(dataset, task, args):
     graphs = []
     for i, graph in enumerate(dataset):
         if task == "graph-labeled" and labels[i] != 0: continue
-        if task == "graph-truncate" and i >= 1000: break
+        if task == "graph-truncate" and i >= 10000: break  # Restored to original 10000
         if not type(graph) == nx.Graph:
             graph = pyg_utils.to_networkx(graph).to_undirected()
-        # Ensure all node attributes are strings to avoid type issues
-        for node in graph.nodes():
-            attrs = graph.nodes[node]
-            # Convert all attributes to strings if they exist
-            if 'label' in attrs:
-                attrs['label'] = str(attrs['label'])
-            if 'id' in attrs:
-                attrs['id'] = str(attrs['id'])
         graphs.append(graph)
     
     if args.use_whole_graphs:
@@ -125,13 +117,9 @@ def pattern_growth(dataset, task, args):
                         if args.subgraph_sample_size != 0:
                             subgraph = subgraph.subgraph(max(
                                 nx.connected_components(subgraph), key=len))
-                        # Preserve node attributes during relabeling
                         mapping = {old: new for new, old in enumerate(subgraph.nodes())}
-                        subgraph = nx.relabel_nodes(subgraph, mapping, copy=True)
-                        # Ensure self-loop doesn't override attributes
-                        attrs = subgraph.nodes[0] if 0 in subgraph.nodes else {}
+                        subgraph = nx.relabel_nodes(subgraph, mapping)
                         subgraph.add_edge(0, 0)
-                        nx.set_node_attributes(subgraph, {0: attrs})
                         neighs.append(subgraph)
                         if args.node_anchored:
                             anchors.append(0)
@@ -167,29 +155,18 @@ def pattern_growth(dataset, task, args):
     x = int(time.time() - start_time)
     print(x // 60, "mins", x % 60, "secs")
 
-    # Save patterns with Neo4j labels
+    # Only modify visualization part to show Neo4j labels
     count_by_size = defaultdict(int)
     for pattern in out_graphs:
         if args.node_anchored:
-            # Use node labels for colors if available
-            colors = []
-            for node in pattern.nodes():
-                if node == 0:
-                    colors.append('red')  # anchor node
-                else:
-                    colors.append('blue')
+            colors = ["red"] + ["blue"]*(len(pattern)-1)
             nx.draw(pattern, node_color=colors, with_labels=True,
                    labels={n: pattern.nodes[n].get('label', str(n)) for n in pattern.nodes()})
         else:
             nx.draw(pattern, with_labels=True,
                    labels={n: pattern.nodes[n].get('label', str(n)) for n in pattern.nodes()})
         
-        # Generate filename using pattern size and labels
         pattern_info = f"{len(pattern)}-{count_by_size[len(pattern)]}"
-        if any('label' in pattern.nodes[n] for n in pattern.nodes()):
-            node_labels = [pattern.nodes[n].get('label', '') for n in pattern.nodes()]
-            pattern_info += f"-{'-'.join(node_labels)}"
-        
         plt.savefig(f"plots/cluster/{pattern_info}.png")
         plt.savefig(f"plots/cluster/{pattern_info}.pdf")
         plt.close()
