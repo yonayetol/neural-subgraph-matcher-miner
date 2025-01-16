@@ -90,7 +90,7 @@ def pattern_growth(dataset, task, args):
     graphs = []
     for i, graph in enumerate(dataset):
         if task == "graph-labeled" and labels[i] != 0: continue
-        if task == "graph-truncate" and i >= 10000: break  # Restored to original 10000
+        if task == "graph-truncate" and i >= 1000: break  # Restored to original 10000
         if not type(graph) == nx.Graph:
             graph = pyg_utils.to_networkx(graph).to_undirected()
         graphs.append(graph)
