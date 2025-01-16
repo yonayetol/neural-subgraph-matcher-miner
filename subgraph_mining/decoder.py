@@ -158,17 +158,51 @@ def pattern_growth(dataset, task, args):
     # Only modify visualization part to show Neo4j labels
     count_by_size = defaultdict(int)
     for pattern in out_graphs:
+        plt.figure(figsize=(12, 8))  # Larger figure for better label visibility
+        
         if args.node_anchored:
             colors = ["red"] + ["blue"]*(len(pattern)-1)
-            nx.draw(pattern, node_color=colors, with_labels=True,
-                   labels={n: pattern.nodes[n].get('label', str(n)) for n in pattern.nodes()})
+            
+            # Create node labels with both ID and label
+            node_labels = {
+                n: f"{pattern.nodes[n].get('id', str(n))}\n{pattern.nodes[n].get('label', 'unknown')}"
+                for n in pattern.nodes()
+            }
+            
+            # Draw nodes and edges
+            pos = nx.spring_layout(pattern, k=1, iterations=50)  # More spread out layout
+            nx.draw(pattern, pos=pos, node_color=colors, with_labels=True,
+                   labels=node_labels, node_size=3000, font_size=8)
+            
+            # Add edge labels if they exist
+            edge_labels = {
+                (u, v): pattern.edges[u, v].get('type', '')
+                for (u, v) in pattern.edges()
+            }
+            nx.draw_networkx_edge_labels(pattern, pos, edge_labels=edge_labels, font_size=8)
+            
         else:
-            nx.draw(pattern, with_labels=True,
-                   labels={n: pattern.nodes[n].get('label', str(n)) for n in pattern.nodes()})
+            # Create node labels with both ID and label
+            node_labels = {
+                n: f"{pattern.nodes[n].get('id', str(n))}\n{pattern.nodes[n].get('label', 'unknown')}"
+                for n in pattern.nodes()
+            }
+            
+            # Draw nodes and edges
+            pos = nx.spring_layout(pattern, k=1, iterations=50)  # More spread out layout
+            nx.draw(pattern, pos=pos, with_labels=True,
+                   labels=node_labels, node_size=3000, font_size=8)
+            
+            # Add edge labels if they exist
+            edge_labels = {
+                (u, v): pattern.edges[u, v].get('type', '')
+                for (u, v) in pattern.edges()
+            }
+            nx.draw_networkx_edge_labels(pattern, pos, edge_labels=edge_labels, font_size=8)
         
         pattern_info = f"{len(pattern)}-{count_by_size[len(pattern)]}"
-        plt.savefig(f"plots/cluster/{pattern_info}.png")
-        plt.savefig(f"plots/cluster/{pattern_info}.pdf")
+        plt.savefig(f"plots/cluster/{pattern_info}.png", bbox_inches='tight', dpi=300)
+        plt.savefig(f"plots/cluster/{pattern_info}.pdf", bbox_inches='tight')
         plt.close()
         count_by_size[len(pattern)] += 1
 
