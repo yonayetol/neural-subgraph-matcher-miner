@@ -67,6 +67,7 @@ def make_plant_dataset(size):
 
 def pattern_growth(dataset, task, args):
     # init model
+    start_time = time.time()
     if args.method_type == "end2end":
         model = models.End2EndOrder(1, args.hidden_dim, args)
     elif args.method_type == "mlp":
