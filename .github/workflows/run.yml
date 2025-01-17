@@ -47,7 +47,8 @@ jobs:
             decoder-image:latest \
             python -m subgraph_mining.decoder \
             --dataset=graph.pkl \
-            --node_anchored
+            --n_trials 10000 \
+            --node_anchored 
       - name: Upload plots as artifact
         uses: actions/upload-artifact@v4
         with:
