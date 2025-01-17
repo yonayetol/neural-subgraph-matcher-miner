@@ -66,7 +66,6 @@ def make_plant_dataset(size):
     return graphs
 
 def pattern_growth(dataset, task, args):
-    start_time = time.time()
     # init model
     if args.method_type == "end2end":
         model = models.End2EndOrder(1, args.hidden_dim, args)
@@ -90,7 +89,7 @@ def pattern_growth(dataset, task, args):
     graphs = []
     for i, graph in enumerate(dataset):
         if task == "graph-labeled" and labels[i] != 0: continue
-        if task == "graph-truncate" and i >= 1000: break  # Restored to original 10000
+        if task == "graph-truncate" and i >= 1000: break
         if not type(graph) == nx.Graph:
             graph = pyg_utils.to_networkx(graph).to_undirected()
         graphs.append(graph)
@@ -117,12 +116,27 @@ def pattern_growth(dataset, task, args):
                         if args.subgraph_sample_size != 0:
                             subgraph = subgraph.subgraph(max(
                                 nx.connected_components(subgraph), key=len))
+                        # Preserve node and edge attributes during relabeling
                         mapping = {old: new for new, old in enumerate(subgraph.nodes())}
                         subgraph = nx.relabel_nodes(subgraph, mapping)
                         subgraph.add_edge(0, 0)
                         neighs.append(subgraph)
                         if args.node_anchored:
                             anchors.append(0)
+        elif args.sample_method == "tree":
+            start_time = time.time()
+            for j in tqdm(range(args.n_neighborhoods)):
+                graph, neigh = utils.sample_neigh(graphs,
+                    random.randint(args.min_neighborhood_size,
+                        args.max_neighborhood_size))
+                subgraph = graph.subgraph(neigh)
+                # Preserve node and edge attributes during relabeling
+                mapping = {old: new for new, old in enumerate(subgraph.nodes())}
+                subgraph = nx.relabel_nodes(subgraph, mapping)
+                subgraph.add_edge(0, 0)
+                neighs.append(subgraph)
+                if args.node_anchored:
+                    anchors.append(0)
 
     embs = []
     if len(neighs) % args.batch_size != 0:
@@ -155,54 +169,24 @@ def pattern_growth(dataset, task, args):
     x = int(time.time() - start_time)
     print(x // 60, "mins", x % 60, "secs")
 
-    # Only modify visualization part to show Neo4j labels
+    # Save patterns with original Neo4j information if available
     count_by_size = defaultdict(int)
     for pattern in out_graphs:
-        plt.figure(figsize=(12, 8))  # Larger figure for better label visibility
-        
         if args.node_anchored:
             colors = ["red"] + ["blue"]*(len(pattern)-1)
-            
-            # Create node labels with both ID and label
-            node_labels = {
-                n: f"{pattern.nodes[n].get('id', str(n))}\n{pattern.nodes[n].get('label', 'unknown')}"
-                for n in pattern.nodes()
-            }
-            
-            # Draw nodes and edges
-            pos = nx.spring_layout(pattern, k=1, iterations=50)  # More spread out layout
-            nx.draw(pattern, pos=pos, node_color=colors, with_labels=True,
-                   labels=node_labels, node_size=3000, font_size=8)
-            
-            # Add edge labels if they exist
-            edge_labels = {
-                (u, v): pattern.edges[u, v].get('type', '')
-                for (u, v) in pattern.edges()
-            }
-            nx.draw_networkx_edge_labels(pattern, pos, edge_labels=edge_labels, font_size=8)
-            
+            nx.draw(pattern, node_color=colors, with_labels=True)
         else:
-            # Create node labels with both ID and label
-            node_labels = {
-                n: f"{pattern.nodes[n].get('id', str(n))}\n{pattern.nodes[n].get('label', 'unknown')}"
-                for n in pattern.nodes()
-            }
-            
-            # Draw nodes and edges
-            pos = nx.spring_layout(pattern, k=1, iterations=50)  # More spread out layout
-            nx.draw(pattern, pos=pos, with_labels=True,
-                   labels=node_labels, node_size=3000, font_size=8)
-            
-            # Add edge labels if they exist
-            edge_labels = {
-                (u, v): pattern.edges[u, v].get('type', '')
-                for (u, v) in pattern.edges()
-            }
-            nx.draw_networkx_edge_labels(pattern, pos, edge_labels=edge_labels, font_size=8)
+            nx.draw(pattern, with_labels=True)
         
+        # Add pattern metadata to filename if from Neo4j
         pattern_info = f"{len(pattern)}-{count_by_size[len(pattern)]}"
-        plt.savefig(f"plots/cluster/{pattern_info}.png", bbox_inches='tight', dpi=300)
-        plt.savefig(f"plots/cluster/{pattern_info}.pdf", bbox_inches='tight')
+        if any('label' in pattern.nodes[n] for n in pattern.nodes()):
+            node_labels = [pattern.nodes[n].get('label', '') for n in pattern.nodes()]
+            edge_types = [pattern.edges[e].get('type', '') for e in pattern.edges()]
+            pattern_info += f"-{'-'.join(node_labels)}-{'-'.join(edge_types)}"
+        
+        plt.savefig(f"plots/cluster/{pattern_info}.png")
+        plt.savefig(f"plots/cluster/{pattern_info}.pdf")
         plt.close()
         count_by_size[len(pattern)] += 1
 
