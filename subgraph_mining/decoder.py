@@ -181,7 +181,6 @@ def pattern_growth(dataset, task, args):
     x = int(time.time() - start_time)
     print(x // 60, "mins", x % 60, "secs")
 
-    # Enhanced visualization with proper Neo4j attribute handling
     count_by_size = defaultdict(int)
     for pattern in out_graphs:
         plt.figure(figsize=(12, 8))
@@ -196,6 +195,7 @@ def pattern_growth(dataset, task, args):
         # Use spring layout with more space between nodes
         pos = nx.spring_layout(pattern, k=1.5, iterations=50)
         
+        # Draw nodes
         if args.node_anchored:
             colors = ["red"] + ["blue"]*(len(pattern)-1)
             nx.draw(pattern, pos=pos, node_color=colors, with_labels=True,
@@ -204,23 +204,29 @@ def pattern_growth(dataset, task, args):
             nx.draw(pattern, pos=pos, with_labels=True,
                    labels=node_labels, node_size=3000, font_size=8)
         
-        # Add edge labels for relationship types
-        edge_labels = {(u, v): pattern.edges[u, v].get('type', '')
-                      for (u, v) in pattern.edges()}
-        nx.draw_networkx_edge_labels(pattern, pos, edge_labels=edge_labels, font_size=8)
+        # Create edge labels using only relationship type
+        edge_labels = {}
+        for u, v, data in pattern.edges(data=True):
+            if 'relationship_type' in data:
+                edge_labels[(u, v)] = data['relationship_type']
         
-        # Create detailed pattern info for filename
+        # Draw edge labels if present
+        if edge_labels:
+            nx.draw_networkx_edge_labels(pattern, pos, edge_labels=edge_labels, font_size=8)
+        
+        # Create pattern info for filename
         pattern_info = [f"{len(pattern)}-{count_by_size[len(pattern)]}"]
         
         # Add node labels to filename if available
         node_types = sorted(set(pattern.nodes[n].get('label', '') for n in pattern.nodes()))
         if any(node_types):
             pattern_info.append('nodes-' + '-'.join(node_types))
-            
-        # Add edge types to filename if available
-        edge_types = sorted(set(pattern.edges[e].get('type', '') for e in pattern.edges()))
-        if any(edge_types):
-            pattern_info.append('edges-' + '-'.join(edge_types))
+        
+        # Add relationship types to filename if available
+        rel_types = sorted(set(data.get('relationship_type', '') 
+                             for _, _, data in pattern.edges(data=True)))
+        if any(rel_types):
+            pattern_info.append('rels-' + '-'.join(rel_types))
         
         filename = '_'.join(pattern_info)
         plt.savefig(f"plots/cluster/{filename}.png", bbox_inches='tight', dpi=300)
