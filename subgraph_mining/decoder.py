@@ -205,8 +205,8 @@ def pattern_growth(dataset, task, args):
                    labels=node_labels, node_size=3000, font_size=8)
         
         # Add edge labels for relationship types
-        edge_labels = {(u, v): pattern.edges[u, v].get('type', '')
-                      for (u, v) in pattern.edges()}
+        edge_labels = {(u,v): data.get('type', '') 
+              for u,v,data in pattern.edges(data=True)}
         nx.draw_networkx_edge_labels(pattern, pos, edge_labels=edge_labels, font_size=8)
         
         # Create detailed pattern info for filename
