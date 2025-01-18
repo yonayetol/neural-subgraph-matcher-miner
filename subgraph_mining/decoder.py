@@ -185,52 +185,57 @@ def pattern_growth(dataset, task, args):
     for pattern in out_graphs:
         plt.figure(figsize=(12, 8))
         
-        # Create meaningful node labels combining ID and label
-        node_labels = {}
-        for n in pattern.nodes():
-            node_id = pattern.nodes[n].get('id', str(n))
-            node_label = pattern.nodes[n].get('label', 'unknown')
-            node_labels[n] = f"{node_id}\n{node_label}"
+        pos = nx.spring_layout(pattern, k=1.2, iterations=50)  # Increased k for better spacing
         
-        # Use spring layout with more space between nodes
-        pos = nx.spring_layout(pattern, k=1.5, iterations=50)
-        
-        # Draw nodes
         if args.node_anchored:
             colors = ["red"] + ["blue"]*(len(pattern)-1)
+            
+            # Draw nodes
+            node_labels = {
+                n: f"{pattern.nodes[n].get('id', str(n))}\n{pattern.nodes[n].get('label', 'unknown')}"
+                for n in pattern.nodes()
+            }
+            
+            # Draw the graph first
             nx.draw(pattern, pos=pos, node_color=colors, with_labels=True,
                    labels=node_labels, node_size=3000, font_size=8)
+            
+            # Draw edge types
+            edge_labels = {
+                (u, v): data.get('type', '')
+                for u, v, data in pattern.edges(data=True)
+            }
+            
+            # Only draw edge labels if they exist
+            if any(edge_labels.values()):
+                nx.draw_networkx_edge_labels(pattern, pos, edge_labels=edge_labels, 
+                                           font_size=8, font_color='darkred')
+            
         else:
+            # Create node labels
+            node_labels = {
+                n: f"{pattern.nodes[n].get('id', str(n))}\n{pattern.nodes[n].get('label', 'unknown')}"
+                for n in pattern.nodes()
+            }
+            
+            # Draw the graph first
             nx.draw(pattern, pos=pos, with_labels=True,
                    labels=node_labels, node_size=3000, font_size=8)
+            
+            # Draw edge types
+            edge_labels = {
+                (u, v): data.get('type', '')
+                for u, v, data in pattern.edges(data=True)
+            }
+            
+            # Only draw edge labels if they exist
+            if any(edge_labels.values()):
+                nx.draw_networkx_edge_labels(pattern, pos, edge_labels=edge_labels, 
+                                           font_size=8, font_color='darkred')
         
-        # Create edge labels using only relationship type
-        edge_labels = {}
-        for u, v, data in pattern.edges(data=True):
-            if 'relationship_type' in data:
-                edge_labels[(u, v)] = data['relationship_type']
-        
-        # Draw edge labels if present
-        if edge_labels:
-            nx.draw_networkx_edge_labels(pattern, pos, edge_labels=edge_labels, font_size=8)
-        
-        # Create pattern info for filename
-        pattern_info = [f"{len(pattern)}-{count_by_size[len(pattern)]}"]
-        
-        # Add node labels to filename if available
-        node_types = sorted(set(pattern.nodes[n].get('label', '') for n in pattern.nodes()))
-        if any(node_types):
-            pattern_info.append('nodes-' + '-'.join(node_types))
-        
-        # Add relationship types to filename if available
-        rel_types = sorted(set(data.get('relationship_type', '') 
-                             for _, _, data in pattern.edges(data=True)))
-        if any(rel_types):
-            pattern_info.append('rels-' + '-'.join(rel_types))
-        
-        filename = '_'.join(pattern_info)
-        plt.savefig(f"plots/cluster/{filename}.png", bbox_inches='tight', dpi=300)
-        plt.savefig(f"plots/cluster/{filename}.pdf", bbox_inches='tight')
+        pattern_info = f"{len(pattern)}-{count_by_size[len(pattern)]}"
+        plt.savefig(f"plots/cluster/{pattern_info}.png", bbox_inches='tight', dpi=300)
+        plt.savefig(f"plots/cluster/{pattern_info}.pdf", bbox_inches='tight')
         plt.close()
         count_by_size[len(pattern)] += 1
 
