@@ -13,7 +13,7 @@ import random
 import scipy.stats as stats
 from tqdm import tqdm
 
-from common.feature_preprocess import FeatureAugment
+from common import feature_preprocess
 
 
 def sample_neigh(graphs, size):
@@ -274,7 +274,7 @@ def standardize_graph(graph: nx.Graph, anchor: int = None) -> nx.Graph:
 
 def batch_nx_graphs(graphs, anchors=None):
     # Initialize feature augmenter
-    augmenter = FeatureAugment()
+    augmenter = feature_preprocess.FeatureAugment()
     
     # Process graphs with proper attribute handling
     processed_graphs = []
