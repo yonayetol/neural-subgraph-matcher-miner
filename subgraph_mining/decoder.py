@@ -245,11 +245,14 @@ def main():
 
     print("Using dataset {}".format(args.dataset))
     if args.dataset.endswith('.pkl'):
-        # Load Neo4j exported graph
         with open(args.dataset, 'rb') as f:
-            dataset = [pickle.load(f)]
+            data = pickle.load(f)
+            graph = nx.Graph()
+            graph.add_nodes_from(data['nodes'])
+            graph.add_edges_from(data['edges'])
+        dataset = [graph]
         task = 'graph'
-        print(f"Loaded Neo4j graph with {dataset[0].number_of_nodes()} nodes and {dataset[0].number_of_edges()} edges")
+        print(f"Loaded Neo4j graph with {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges")
     elif args.dataset == 'enzymes':
         dataset = TUDataset(root='/tmp/ENZYMES', name='ENZYMES')
         task = 'graph'
