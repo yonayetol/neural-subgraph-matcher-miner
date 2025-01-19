@@ -3,7 +3,6 @@ from collections import defaultdict, Counter
 from deepsnap.graph import Graph as DSGraph
 from deepsnap.batch import Batch
 from deepsnap.dataset import GraphDataset
-from common.feature_preprocess import FeatureAugment
 import torch
 import torch.optim as optim
 import torch_geometric.utils as pyg_utils
@@ -14,7 +13,8 @@ import random
 import scipy.stats as stats
 from tqdm import tqdm
 
-from common import feature_preprocess
+from common.feature_preprocess import FeatureAugment
+
 
 def sample_neigh(graphs, size):
     ps = np.array([len(g) for g in graphs], dtype=np.float)
