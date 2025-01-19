@@ -3,6 +3,7 @@ from collections import defaultdict, Counter
 from deepsnap.graph import Graph as DSGraph
 from deepsnap.batch import Batch
 from deepsnap.dataset import GraphDataset
+from common.feature_preprocess import FeatureAugment
 import torch
 import torch.optim as optim
 import torch_geometric.utils as pyg_utils
