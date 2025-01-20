@@ -279,6 +279,9 @@ def batch_nx_graphs(graphs, anchors=None):
     # Process graphs with proper attribute handling
     processed_graphs = []
     for i, graph in enumerate(graphs):
+        print(f"Graph {i} edge attributes:")
+        for u, v in graph.edges():
+            print(f"Edge {u}-{v} attributes:", graph.edges[u,v])
         anchor = anchors[i] if anchors is not None else None
         try:
             # Standardize graph attributes
