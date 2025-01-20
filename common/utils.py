@@ -12,6 +12,7 @@ import numpy as np
 import random
 import scipy.stats as stats
 from tqdm import tqdm
+import warnings
 
 from common import feature_preprocess
 
@@ -279,9 +280,6 @@ def batch_nx_graphs(graphs, anchors=None):
     # Process graphs with proper attribute handling
     processed_graphs = []
     for i, graph in enumerate(graphs):
-        print(f"Graph {i} edge attributes:")
-        for u, v in graph.edges():
-            print(f"Edge {u}-{v} attributes:", graph.edges[u,v])
         anchor = anchors[i] if anchors is not None else None
         try:
             # Standardize graph attributes
@@ -301,9 +299,14 @@ def batch_nx_graphs(graphs, anchors=None):
                 minimal_graph.nodes[node]['node_feature'] = torch.tensor([1.0])
             processed_graphs.append(DSGraph(minimal_graph))
     
-    # Create and process batch
+    # Create batch
     batch = Batch.from_data_list(processed_graphs)
-    batch = augmenter.augment(batch)
+    
+    # Suppress the specific warning during augmentation
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', message='Unknown type of key*')
+        batch = augmenter.augment(batch)
+    
     return batch.to(get_device())
 
 def get_device():
