@@ -41,6 +41,31 @@ import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
 from itertools import combinations
 
+MAX_SEARCH_TIME = 60  
+MAX_MATCHES_PER_QUERY = 10000  
+DEFAULT_SAMPLE_ANCHORS = 1000  
+
+def compute_graph_stats(G):
+    """Compute graph statistics for filtering."""
+    return {
+        'n_nodes': G.number_of_nodes(),
+        'n_edges': G.number_of_edges(),
+        'degree_seq': sorted([d for _, d in G.degree()], reverse=True),
+        'avg_degree': sum(dict(G.degree()).values()) / G.number_of_nodes()
+    }
+
+def can_be_isomorphic(query_stats, target_stats):
+    """Quick check if query could possibly be isomorphic to a subgraph of target."""
+    if query_stats['n_nodes'] > target_stats['n_nodes']:
+        return False
+    if query_stats['n_edges'] > target_stats['n_edges']:
+        return False
+    if query_stats['avg_degree'] > target_stats['avg_degree']:
+        return False
+    query_degrees = query_stats['degree_seq']
+    target_degrees = target_stats['degree_seq']
+    return all(d <= target_degrees[i] for i, d in enumerate(query_degrees))
+
 def arg_parse():
     parser = argparse.ArgumentParser(description='count graphlets in a graph')
     parser.add_argument('--dataset', type=str)
@@ -51,13 +76,15 @@ def arg_parse():
     parser.add_argument('--baseline', type=str)
     parser.add_argument('--node_anchored', action="store_true")
     parser.add_argument('--preserve_labels', action="store_true", help='Preserve Neo4j node and edge labels during counting')
+    parser.add_argument('--max_query_size', type=int, default=20, help='Maximum query size to process')
+    parser.add_argument('--sample_anchors', type=int, default=DEFAULT_SAMPLE_ANCHORS, help='Number of anchor nodes to sample for large graphs')
     parser.set_defaults(dataset="enzymes",
-                        queries_path="results/out-patterns.p",
-                        out_path="results/counts.json",
-                        n_workers=4,
-                        count_method="bin",
-                        baseline="none",
-                        preserve_labels=False)
+                       queries_path="results/out-patterns.p",
+                       out_path="results/counts.json",
+                       n_workers=4,
+                       count_method="bin",
+                       baseline="none",
+                       preserve_labels=False)
     return parser.parse_args()
 
 def gen_baseline_queries(queries, targets, method="mfinder",
@@ -113,25 +140,27 @@ def gen_baseline_queries(queries, targets, method="mfinder",
 
 def count_graphlets_helper(inp):
     i, query, target, method, node_anchored, anchor_or_none, preserve_labels = inp
-    # NOTE: removing self loops!!
+    
+    # Remove self loops
     query = query.copy()
     query.remove_edges_from(nx.selfloop_edges(query))
+    target = target.copy()
+    target.remove_edges_from(nx.selfloop_edges(target))
 
+    # Pre-compute query stats for method "freq"
     if method == "freq":
         ismags = nx.isomorphism.ISMAGS(query, query)
         n_symmetries = len(list(ismags.isomorphisms_iter(symmetry=False)))
 
-    n, n_bin = 0, 0
-    target = target.copy()
-    target.remove_edges_from(nx.selfloop_edges(target))
-
-    if method == "bin":
-        if node_anchored:
-            for anchor in (target.nodes if anchor_or_none is None else [anchor_or_none]):
+    count = 0
+    try:
+        start_time = time.time()
+        
+        if method == "bin":
+            if node_anchored:
                 nx.set_node_attributes(target, 0, name="anchor")
-                target.nodes[anchor]["anchor"] = 1
+                target.nodes[anchor_or_none]["anchor"] = 1
                 
-                # Handle Neo4j label matching if enabled
                 if preserve_labels:
                     matcher = iso.GraphMatcher(target, query,
                         node_match=lambda n1, n2: (n1.get("anchor") == n2.get("anchor") and
@@ -141,54 +170,89 @@ def count_graphlets_helper(inp):
                     matcher = iso.GraphMatcher(target, query,
                         node_match=iso.categorical_node_match(["anchor"], [0]))
                 
-                if matcher.subgraph_is_isomorphic():
-                    n += 1
-        else:
+                if time.time() - start_time > MAX_SEARCH_TIME:
+                    return i, 0
+                count = int(matcher.subgraph_is_isomorphic())
+            else:
+                if preserve_labels:
+                    matcher = iso.GraphMatcher(target, query,
+                        node_match=lambda n1, n2: n1.get("label") == n2.get("label"),
+                        edge_match=lambda e1, e2: e1.get("type") == e2.get("type"))
+                else:
+                    matcher = iso.GraphMatcher(target, query)
+                if time.time() - start_time > MAX_SEARCH_TIME:
+                    return i, 0
+                count = int(matcher.subgraph_is_isomorphic())
+        elif method == "freq":
             if preserve_labels:
                 matcher = iso.GraphMatcher(target, query,
                     node_match=lambda n1, n2: n1.get("label") == n2.get("label"),
                     edge_match=lambda e1, e2: e1.get("type") == e2.get("type"))
             else:
                 matcher = iso.GraphMatcher(target, query)
-            n += int(matcher.subgraph_is_isomorphic())
-    elif method == "freq":
-        if preserve_labels:
-            matcher = iso.GraphMatcher(target, query,
-                node_match=lambda n1, n2: n1.get("label") == n2.get("label"),
-                edge_match=lambda e1, e2: e1.get("type") == e2.get("type"))
-        else:
-            matcher = iso.GraphMatcher(target, query)
-        n += len(list(matcher.subgraph_isomorphisms_iter())) / n_symmetries
-    else:
-        print("counting method not understood")
+            
+            count = 0
+            for _ in matcher.subgraph_isomorphisms_iter():
+                if time.time() - start_time > MAX_SEARCH_TIME:
+                    break
+                count += 1
+                if count >= MAX_MATCHES_PER_QUERY:
+                    break
+            count = count / n_symmetries
+    except Exception as e:
+        print(f"Error processing query {i}: {str(e)}")
+        count = 0
         
-    return i, n
+    return i, count
 
 def count_graphlets(queries, targets, n_workers=1, method="bin",
-    node_anchored=False, min_count=0, preserve_labels=False):
-    print(len(queries), len(targets))
+    node_anchored=False, min_count=0, preserve_labels=False, sample_anchors=DEFAULT_SAMPLE_ANCHORS):
+    print(f"Processing {len(queries)} queries across {len(targets)} targets")
+    
+    # Pre-compute graph statistics
+    target_stats = [compute_graph_stats(t) for t in targets]
+    query_stats = [compute_graph_stats(q) for q in queries]
     
     n_matches = defaultdict(float)
     pool = Pool(processes=n_workers)
-    if node_anchored:
-        inp = [(i, query, target, method, node_anchored, anchor, preserve_labels) 
-               for i, query in enumerate(queries) 
-               for target in targets 
-               for anchor in (target if len(targets) < 10 else [None])]
-    else:
-        inp = [(i, query, target, method, node_anchored, None, preserve_labels) 
-               for i, query in enumerate(queries) 
-               for target in targets]
     
-    print(len(inp))
+    # Generate work items with filtering
+    inp = []
+    for i, (query, q_stats) in enumerate(zip(queries, query_stats)):
+        if query.number_of_nodes() > args.max_query_size:
+            continue
+            
+        for target, t_stats in zip(targets, target_stats):
+            if not can_be_isomorphic(q_stats, t_stats):
+                continue
+                
+            if node_anchored:
+                # Sample anchors for large graphs
+                if target.number_of_nodes() > sample_anchors:
+                    anchors = random.sample(list(target.nodes), sample_anchors)
+                else:
+                    anchors = list(target.nodes)
+                    
+                for anchor in anchors:
+                    inp.append((i, query, target, method, node_anchored, anchor, preserve_labels))
+            else:
+                inp.append((i, query, target, method, node_anchored, None, preserve_labels))
+    
+    print(f"Generated {len(inp)} tasks after filtering")
     n_done = 0
-    for i, n in pool.imap_unordered(count_graphlets_helper, inp):
-        print(n_done, len(n_matches), i, n, "                ", end="\r")
-        n_matches[i] += n
-        n_done += 1
-    print()
-    n_matches = [n_matches[i] for i in range(len(n_matches))]
-    return n_matches
+    
+    # Process in batches to manage memory
+    batch_size = 1000
+    for batch_start in range(0, len(inp), batch_size):
+        batch = inp[batch_start:batch_start + batch_size]
+        for i, n in pool.imap_unordered(count_graphlets_helper, batch):
+            print(f"Processed {n_done}/{len(inp)} tasks, queries with matches: {len(n_matches)}",
+                  end="\r")
+            n_matches[i] += n
+            n_done += 1
+    
+    print("\nDone counting")
+    return [n_matches[i] for i in range(len(queries))]
 
 def count_exact(queries, targets, args):
     """
