@@ -193,6 +193,10 @@ def pattern_growth(dataset, task, args):
             node_labels[n] = f"{node_id}:\n{node_label}"
             unique_node_types.add(node_label)
         
+        # Print debug information
+        print("Args node_anchored:", args.node_anchored)
+        print("Pattern nodes:", list(pattern.nodes(data=True)))
+        
         node_type_colors = {}
         color_palette = plt.cm.Set3(np.linspace(0, 1, len(unique_node_types)))
         for i, node_type in enumerate(sorted(unique_node_types)):
@@ -200,16 +204,20 @@ def pattern_growth(dataset, task, args):
         
         node_colors = []
         node_sizes = []
+        node_shapes = []
         for n in pattern.nodes():
             node_label = pattern.nodes[n].get('label', 'unknown')
             
-            if args.node_anchored and n == 0:
-                # Anchored node: distinct visualization
+            is_anchor = (args.node_anchored and n == 0)
+            
+            if is_anchor:
                 node_colors.append('red')
-                node_sizes.append(6000) 
+                node_sizes.append(6000)
+                node_shapes.append('s')
             else:
                 node_colors.append(node_type_colors[node_label])
                 node_sizes.append(3000)
+                node_shapes.append('o')
         
         pos = nx.spring_layout(pattern, k=2.0, seed=42, iterations=50)
         
