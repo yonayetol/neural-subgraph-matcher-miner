@@ -183,73 +183,93 @@ def pattern_growth(dataset, task, args):
 
     count_by_size = defaultdict(int)
     for pattern in out_graphs:
-        try:
-            plt.figure(figsize=(15, 10))  
-    
-            node_labels = {}
-            for n in pattern.nodes():
-                node_id = pattern.nodes[n].get('id', str(n))
-                node_label = pattern.nodes[n].get('label', 'unknown')
-                node_labels[n] = f"{node_id}:\n{node_label}"
-    
-            pos = nx.spring_layout(pattern, k=2.0, seed=42, iterations=50)
-    
-            if args.node_anchored:
-                colors = ["red"] + [plt.cm.Set3(i) for i in range(len(pattern)-1)]
-                node_sizes = [5000 if i == 0 else 3000 for i in range(len(pattern))]
-            else:
-                colors = [plt.cm.Set3(i) for i in range(len(pattern))]
-                node_sizes = [3000] * len(pattern)
-    
-            nx.draw_networkx_nodes(pattern, pos, 
-                            node_color=colors, 
-                            node_size=node_sizes, 
-                            edgecolors='black', 
-                            linewidths=1.5)
-    
-            nx.draw_networkx_edges(pattern, pos, 
-                            width=2,  
-                            edge_color='gray',  
-                            alpha=0.7)  
-    
-            nx.draw_networkx_labels(pattern, pos, 
-                             labels=node_labels, 
-                             font_size=9, 
-                             font_weight='bold',
-                             font_color='black',
-                             bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
-    
-            edge_labels = {(u,v): data.get('type', '') 
-                    for u,v,data in pattern.edges(data=True)}
-            nx.draw_networkx_edge_labels(pattern, pos, 
-                                  edge_labels=edge_labels, 
-                                  font_size=8, 
-                                  font_color='darkred',  # Corrected color
-                                  bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
-    
-            plt.title(f"Pattern Graph (Size: {len(pattern)} nodes)")
-            plt.axis('off')  
-    
-            pattern_info = [f"{len(pattern)}-{count_by_size[len(pattern)]}"]
-    
-            node_types = sorted(set(pattern.nodes[n].get('label', '') for n in pattern.nodes()))
-            if any(node_types):
-                pattern_info.append('nodes-' + '-'.join(node_types))
+            try:
+                plt.figure(figsize=(15, 10))  
         
-            edge_types = sorted(set(pattern.edges[e].get('type', '') for e in pattern.edges()))
-            if any(edge_types):
-                pattern_info.append('edges-' + '-'.join(edge_types))
-    
-            filename = '_'.join(pattern_info)
-            plt.tight_layout()
-            plt.savefig(f"plots/cluster/{filename}.png", bbox_inches='tight', dpi=300)
-            plt.savefig(f"plots/cluster/{filename}.pdf", bbox_inches='tight')
-            plt.close()
-            count_by_size[len(pattern)] += 1
-    
-        except Exception as e:
-            print(f"Error visualizing pattern graph: {e}")
-            continue
+                node_labels = {}
+                for n in pattern.nodes():
+                    node_id = pattern.nodes[n].get('id', str(n))
+                    node_label = pattern.nodes[n].get('label', 'unknown')
+                    node_labels[n] = f"{node_id}:\n{node_label}"
+        
+                pos = nx.spring_layout(pattern, k=2.0, seed=42, iterations=50)
+        
+                # Create a color mapping for unique labels
+                unique_labels = sorted(set(pattern.nodes[n].get('label', 'unknown') for n in pattern.nodes()))
+                label_color_map = {label: plt.cm.Set3(i) for i, label in enumerate(unique_labels)}
+        
+                # Assign colors based on node labels
+                colors = []
+                node_sizes = []
+                node_shapes = []
+                for i, node in enumerate(pattern.nodes()):
+                    node_label = pattern.nodes[node].get('label', 'unknown')
+                    
+                    if args.node_anchored and i == 0:
+                        # Anchor node is red and square
+                        colors.append('red')
+                        node_sizes.append(5000)
+                        node_shapes.append('s')  # square
+                    else:
+                        # Other nodes colored by label
+                        colors.append(label_color_map[node_label])
+                        node_sizes.append(3000)
+                        node_shapes.append('o')  # circle
+        
+                # Draw nodes with different shapes
+                for shape in set(node_shapes):
+                    shape_indices = [i for i, s in enumerate(node_shapes) if s == shape]
+                    nx.draw_networkx_nodes(pattern, pos, 
+                                    nodelist=[list(pattern.nodes())[i] for i in shape_indices],
+                                    node_color=[colors[i] for i in shape_indices], 
+                                    node_size=[node_sizes[i] for i in shape_indices], 
+                                    node_shape=shape,
+                                    edgecolors='black', 
+                                    linewidths=1.5)
+        
+                nx.draw_networkx_edges(pattern, pos, 
+                                width=2,  
+                                edge_color='gray',  
+                                alpha=0.7)  
+        
+                nx.draw_networkx_labels(pattern, pos, 
+                                 labels=node_labels, 
+                                 font_size=9, 
+                                 font_weight='bold',
+                                 font_color='black',
+                                 bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+        
+                edge_labels = {(u,v): data.get('type', '') 
+                        for u,v,data in pattern.edges(data=True)}
+                nx.draw_networkx_edge_labels(pattern, pos, 
+                                      edge_labels=edge_labels, 
+                                      font_size=8, 
+                                      font_color='darkred',  
+                                      bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+        
+                plt.title(f"Pattern Graph (Size: {len(pattern)} nodes)")
+                plt.axis('off')  
+        
+                pattern_info = [f"{len(pattern)}-{count_by_size[len(pattern)]}"]
+        
+                node_types = sorted(set(pattern.nodes[n].get('label', '') for n in pattern.nodes()))
+                if any(node_types):
+                    pattern_info.append('nodes-' + '-'.join(node_types))
+            
+                edge_types = sorted(set(pattern.edges[e].get('type', '') for e in pattern.edges()))
+                if any(edge_types):
+                    pattern_info.append('edges-' + '-'.join(edge_types))
+        
+                filename = '_'.join(pattern_info)
+                plt.tight_layout()
+                plt.savefig(f"plots/cluster/{filename}.png", bbox_inches='tight', dpi=300)
+                plt.savefig(f"plots/cluster/{filename}.pdf", bbox_inches='tight')
+                plt.close()
+                count_by_size[len(pattern)] += 1
+        
+            except Exception as e:
+                print(f"Error visualizing pattern graph: {e}")
+                continue
 
     if not os.path.exists("results"):
         os.makedirs("results")
