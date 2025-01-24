@@ -184,45 +184,64 @@ def pattern_growth(dataset, task, args):
     # Enhanced visualization with proper Neo4j attribute handling
     count_by_size = defaultdict(int)
     for pattern in out_graphs:
-        plt.figure(figsize=(12, 8))
-        
-        # Create meaningful node labels combining ID and label
+        plt.figure(figsize=(15, 10))  
+    
         node_labels = {}
         for n in pattern.nodes():
             node_id = pattern.nodes[n].get('id', str(n))
             node_label = pattern.nodes[n].get('label', 'unknown')
-            node_labels[n] = f"{node_id}\n{node_label}"
-        
-        # Use spring layout with more space between nodes
-        pos = nx.spring_layout(pattern, k=1.5, iterations=50)
-        
+            node_labels[n] = f"{node_id}:\n{node_label}"
+    
+        pos = nx.spring_layout(pattern, k=2.0, seed=42, iterations=50)
+    
         if args.node_anchored:
-            colors = ["red"] + ["blue"]*(len(pattern)-1)
-            nx.draw(pattern, pos=pos, node_color=colors, with_labels=True,
-                   labels=node_labels, node_size=3000, font_size=8)
+            colors = ["red"] + [plt.cm.Set3(i) for i in range(len(pattern)-1)]
+            node_sizes = [5000 if i == 0 else 3000 for i in range(len(pattern))]
         else:
-            nx.draw(pattern, pos=pos, with_labels=True,
-                   labels=node_labels, node_size=3000, font_size=8)
-        
-        # Add edge labels for relationship types
+            colors = [plt.cm.Set3(i) for i in range(len(pattern))]
+            node_sizes = [3000] * len(pattern)
+    
+        nx.draw_networkx_nodes(pattern, pos, 
+                            node_color=colors, 
+                            node_size=node_sizes, 
+                            edgecolors='black', 
+                            linewidths=1.5)
+    
+        nx.draw_networkx_edges(pattern, pos, 
+                            width=2,  
+                            edge_color='gray',  
+                            alpha=0.7)  
+    
+        nx.draw_networkx_labels(pattern, pos, 
+                             labels=node_labels, 
+                             font_size=9, 
+                             font_weight='bold',
+                             font_color='black',
+                             bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+    
         edge_labels = {(u,v): data.get('type', '') 
-              for u,v,data in pattern.edges(data=True)}
-        nx.draw_networkx_edge_labels(pattern, pos, edge_labels=edge_labels, font_size=8)
-        
-        # Create detailed pattern info for filename
+                    for u,v,data in pattern.edges(data=True)}
+        nx.draw_networkx_edge_labels(pattern, pos, 
+                                  edge_labels=edge_labels, 
+                                  font_size=8, 
+                                  font_color='dark red',
+                                  bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+    
+        plt.title(f"Pattern Graph (Size: {len(pattern)} nodes)")
+        plt.axis('off')  
+    
         pattern_info = [f"{len(pattern)}-{count_by_size[len(pattern)]}"]
-        
-        # Add node labels to filename if available
+    
         node_types = sorted(set(pattern.nodes[n].get('label', '') for n in pattern.nodes()))
         if any(node_types):
             pattern_info.append('nodes-' + '-'.join(node_types))
-            
-        # Add edge types to filename if available
+        
         edge_types = sorted(set(pattern.edges[e].get('type', '') for e in pattern.edges()))
         if any(edge_types):
             pattern_info.append('edges-' + '-'.join(edge_types))
-        
+    
         filename = '_'.join(pattern_info)
+        plt.tight_layout()
         plt.savefig(f"plots/cluster/{filename}.png", bbox_inches='tight', dpi=300)
         plt.savefig(f"plots/cluster/{filename}.pdf", bbox_inches='tight')
         plt.close()
