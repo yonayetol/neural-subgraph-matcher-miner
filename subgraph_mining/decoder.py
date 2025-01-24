@@ -224,7 +224,7 @@ def pattern_growth(dataset, task, args):
         nx.draw_networkx_edge_labels(pattern, pos, 
                                   edge_labels=edge_labels, 
                                   font_size=8, 
-                                  font_color='dark red',
+                                  font_color='darkred',
                                   bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
     
         plt.title(f"Pattern Graph (Size: {len(pattern)} nodes)")
