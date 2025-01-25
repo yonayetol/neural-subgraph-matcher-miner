@@ -44,7 +44,6 @@ import networkx as nx
 import pickle
 import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
-import warnings
 
 
 def make_plant_dataset(size):
@@ -226,14 +225,17 @@ def pattern_growth(dataset, task, args):
                                  font_color='black',
                                  bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
         
-                edge_labels = {(u,v): data.get('type', '') 
-                        for u,v,data in pattern.edges(data=True)}
+                edge_labels = {}
+                for u, v, data in pattern.edges(data=True):
+                    edge_type = data.get('type', '') if isinstance(data, dict) else ''
+                    edge_labels[(u, v)] = edge_type
+
                 nx.draw_networkx_edge_labels(pattern, pos, 
-                                      edge_labels=edge_labels, 
-                                      font_size=8, 
-                                      font_color='darkred',  
-                                      bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
-        
+                                            edge_labels=edge_labels, 
+                                            font_size=8, 
+                                            font_color='darkred',  
+                                            bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+                
                 plt.title(f"Pattern Graph (Size: {len(pattern)} nodes)")
                 plt.axis('off')  
         
@@ -264,10 +266,6 @@ def pattern_growth(dataset, task, args):
         pickle.dump(out_graphs, f)
 
 def main():
-    warnings.filterwarnings("ignore")
-    warnings.filterwarnings("ignore", message="Error processing graph*")
-    warnings.filterwarnings("ignore", message="Unknown type of key*")
-
     if not os.path.exists("plots/cluster"):
         os.makedirs("plots/cluster")
 
