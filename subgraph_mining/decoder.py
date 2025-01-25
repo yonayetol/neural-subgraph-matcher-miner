@@ -226,7 +226,8 @@ def pattern_growth(dataset, task, args):
                                  bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
         
                 edge_labels = {(u,v): data.get('type', '') 
-                        for u,v,data in pattern.edges(data=True)}
+                    for u,v,data in pattern.edges(data=True)
+                    if isinstance(data, dict)}
                 nx.draw_networkx_edge_labels(pattern, pos, 
                                       edge_labels=edge_labels, 
                                       font_size=8, 
@@ -263,8 +264,6 @@ def pattern_growth(dataset, task, args):
         pickle.dump(out_graphs, f)
 
 def main():
-    warnings.filterwarnings("ignore")
-    warnings.filterwarnings("ignore", category=Warning)
     if not os.path.exists("plots/cluster"):
         os.makedirs("plots/cluster")
 
