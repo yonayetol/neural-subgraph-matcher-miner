@@ -44,6 +44,8 @@ import networkx as nx
 import pickle
 import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
+import warnings
+
 
 def make_plant_dataset(size):
     generator = combined_syn.get_generator([size])
@@ -263,8 +265,6 @@ def pattern_growth(dataset, task, args):
 
 def main():
     warnings.filterwarnings("ignore")
-    
-    import warnings
     warnings.filterwarnings("ignore", message="Error processing graph*")
     warnings.filterwarnings("ignore", message="Unknown type of key*")
 
