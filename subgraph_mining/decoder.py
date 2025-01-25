@@ -263,6 +263,7 @@ def pattern_growth(dataset, task, args):
         pickle.dump(out_graphs, f)
 
 def main():
+    warnings.filterwarnings("ignore")
     warnings.filterwarnings("ignore", category=Warning)
     if not os.path.exists("plots/cluster"):
         os.makedirs("plots/cluster")
