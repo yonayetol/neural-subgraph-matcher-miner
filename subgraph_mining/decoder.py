@@ -46,7 +46,7 @@ import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
 import warnings
 
-warnings.filterwarnings("ignore", message="Unknown type of key {} in edge attributes.")
+warnings.filterwarnings("ignore")
 
 def make_plant_dataset(size):
     generator = combined_syn.get_generator([size])
