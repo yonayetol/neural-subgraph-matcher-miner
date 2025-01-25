@@ -46,8 +46,6 @@ import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
 import warnings
 
-warnings.filterwarnings("ignore")
-
 def make_plant_dataset(size):
     generator = combined_syn.get_generator([size])
     random.seed(3001)
@@ -265,6 +263,7 @@ def pattern_growth(dataset, task, args):
         pickle.dump(out_graphs, f)
 
 def main():
+    warnings.filterwarnings("ignore")
     if not os.path.exists("plots/cluster"):
         os.makedirs("plots/cluster")
 
