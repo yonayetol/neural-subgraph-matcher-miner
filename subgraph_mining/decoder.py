@@ -225,9 +225,12 @@ def pattern_growth(dataset, task, args):
                                  font_color='black',
                                  bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
         
-                edge_labels = {(u,v): data.get('type', '') 
-                    for u,v,data in pattern.edges(data=True)
-                    if isinstance(data, dict)}
+                try:
+                    edge_labels = {(u,v): data.get('type', '') 
+                        for u,v,data in pattern.edges(data=True)}
+                except Exception as e:
+                    print(f"Warning: Could not process edge attributes for graph: {e}")
+                    edge_labels = {}
                 nx.draw_networkx_edge_labels(pattern, pos, 
                                       edge_labels=edge_labels, 
                                       font_size=8, 
