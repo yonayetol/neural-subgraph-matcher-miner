@@ -44,7 +44,6 @@ import networkx as nx
 import pickle
 import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
-import warnings
 
 def make_plant_dataset(size):
     generator = combined_syn.get_generator([size])
@@ -225,12 +224,8 @@ def pattern_growth(dataset, task, args):
                                  font_color='black',
                                  bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
         
-                try:
-                    edge_labels = {(u,v): data.get('type', '') 
+                edge_labels = {(u,v): data.get('type', '') 
                         for u,v,data in pattern.edges(data=True)}
-                except Exception as e:
-                    print(f"Warning: Could not process edge attributes for graph: {e}")
-                    edge_labels = {}
                 nx.draw_networkx_edge_labels(pattern, pos, 
                                       edge_labels=edge_labels, 
                                       font_size=8, 
@@ -267,6 +262,12 @@ def pattern_growth(dataset, task, args):
         pickle.dump(out_graphs, f)
 
 def main():
+    warnings.filterwarnings("ignore")
+    
+    import warnings
+    warnings.filterwarnings("ignore", message="Error processing graph*")
+    warnings.filterwarnings("ignore", message="Unknown type of key*")
+
     if not os.path.exists("plots/cluster"):
         os.makedirs("plots/cluster")
 
