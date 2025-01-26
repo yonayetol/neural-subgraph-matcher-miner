@@ -45,6 +45,35 @@ import pickle
 import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
 
+def process_large_graph_in_chunks(graph, chunk_size=10000):
+    graph_chunks = []
+    
+    # Get all nodes
+    all_nodes = list(graph.nodes())
+    
+    # Process graph in chunks
+    for i in range(0, len(all_nodes), chunk_size):
+        chunk_nodes = all_nodes[i:i+chunk_size]
+        
+        # Create subgraph for this chunk
+        chunk_graph = graph.subgraph(chunk_nodes)
+        
+        # Ensure connectivity by adding some neighboring nodes
+        extended_nodes = set(chunk_nodes)
+        for node in chunk_nodes:
+            # Add 1-hop neighbors if not already in the chunk
+            neighbors = list(graph.neighbors(node))
+            for neighbor in neighbors:
+                if neighbor not in extended_nodes:
+                    extended_nodes.add(neighbor)
+                    if len(extended_nodes) > chunk_size * 1.2:  # Allow 20% overflow
+                        break
+        
+        chunk_subgraph = graph.subgraph(extended_nodes)
+        graph_chunks.append(chunk_subgraph)
+    
+    return graph_chunks
+
 def make_plant_dataset(size):
     generator = combined_syn.get_generator([size])
     random.seed(3001)
@@ -64,6 +93,41 @@ def make_plant_dataset(size):
             graph.add_edge(u, v)
         graphs.append(graph)
     return graphs
+
+def pattern_growth_streaming(dataset, task, args):
+    """
+    Modified pattern growth to support streaming large graphs
+    """
+    # If it's a single large graph, chunk it
+    if len(dataset) == 1 and dataset[0].number_of_nodes() > 100000:
+        graph = dataset[0]
+        graph_chunks = process_large_graph_in_chunks(graph, chunk_size=args.chunk_size)
+        dataset = graph_chunks
+    
+    # Track discovered patterns across chunks
+    all_discovered_patterns = []
+    
+    # Process each chunk
+    for chunk_index, chunk_dataset in enumerate(dataset):
+        print(f"Processing chunk {chunk_index + 1}/{len(dataset)}")
+        
+        try:
+            # Existing pattern growth logic
+            chunk_out_graphs = pattern_growth([chunk_dataset], task, args)
+            
+            # Combine patterns
+            all_discovered_patterns.extend(chunk_out_graphs)
+            
+            # Optional: Limit total discovered patterns
+            if len(all_discovered_patterns) > args.max_total_patterns:
+                print(f"Reached maximum total patterns ({args.max_total_patterns}). Stopping.")
+                break
+        
+        except Exception as e:
+            print(f"Error processing chunk {chunk_index}: {e}")
+            continue
+    
+    return all_discovered_patterns
 
 def pattern_growth(dataset, task, args):
     start_time = time.time()
@@ -275,6 +339,8 @@ def pattern_growth(dataset, task, args):
         os.makedirs("results")
     with open(args.out_path, "wb") as f:
         pickle.dump(out_graphs, f)
+    
+    return out_graphs
 
 def main():
     if not os.path.exists("plots/cluster"):
