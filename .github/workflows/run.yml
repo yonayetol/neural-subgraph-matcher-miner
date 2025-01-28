@@ -49,8 +49,7 @@ jobs:
             --dataset=graph.pkl \
             --n_trials 1000 \
             --node_anchored \
-            --search_strategy=mcts \
-            --batch_size=1000
+            --search_strategy=mcts
       - name: Upload plots as artifact
         uses: actions/upload-artifact@v4
         with:
