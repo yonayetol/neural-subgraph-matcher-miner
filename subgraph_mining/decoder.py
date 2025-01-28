@@ -45,7 +45,7 @@ import pickle
 import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
 
-def process_large_graph_in_chunks(graph, chunk_size=10000):
+def process_large_graph_in_chunks(graph, chunk_size=5000):
     graph_chunks = []
     
     all_nodes = list(graph.nodes())
