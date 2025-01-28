@@ -48,7 +48,9 @@ jobs:
             python -m subgraph_mining.decoder \
             --dataset=graph.pkl \
             --n_trials 1000 \
-            --node_anchored 
+            --node_anchored \
+            --search_strategy=mcts \
+            --batch_size=1000
       - name: Upload plots as artifact
         uses: actions/upload-artifact@v4
         with:

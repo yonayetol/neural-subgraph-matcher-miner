@@ -48,25 +48,20 @@ from sklearn.decomposition import PCA
 def process_large_graph_in_chunks(graph, chunk_size=10000):
     graph_chunks = []
     
-    # Get all nodes
     all_nodes = list(graph.nodes())
     
-    # Process graph in chunks
     for i in range(0, len(all_nodes), chunk_size):
         chunk_nodes = all_nodes[i:i+chunk_size]
         
-        # Create subgraph for this chunk
         chunk_graph = graph.subgraph(chunk_nodes)
         
-        # Ensure connectivity by adding some neighboring nodes
         extended_nodes = set(chunk_nodes)
         for node in chunk_nodes:
-            # Add 1-hop neighbors if not already in the chunk
             neighbors = list(graph.neighbors(node))
             for neighbor in neighbors:
                 if neighbor not in extended_nodes:
                     extended_nodes.add(neighbor)
-                    if len(extended_nodes) > chunk_size * 1.2:  # Allow 20% overflow
+                    if len(extended_nodes) > chunk_size * 1.2:  
                         break
         
         chunk_subgraph = graph.subgraph(extended_nodes)
@@ -95,30 +90,21 @@ def make_plant_dataset(size):
     return graphs
 
 def pattern_growth_streaming(dataset, task, args):
-    """
-    Modified pattern growth to support streaming large graphs
-    """
-    # If it's a single large graph, chunk it
     if len(dataset) == 1 and dataset[0].number_of_nodes() > 100000:
         graph = dataset[0]
         graph_chunks = process_large_graph_in_chunks(graph, chunk_size=args.chunk_size)
         dataset = graph_chunks
     
-    # Track discovered patterns across chunks
     all_discovered_patterns = []
     
-    # Process each chunk
     for chunk_index, chunk_dataset in enumerate(dataset):
         print(f"Processing chunk {chunk_index + 1}/{len(dataset)}")
         
         try:
-            # Existing pattern growth logic
             chunk_out_graphs = pattern_growth([chunk_dataset], task, args)
             
-            # Combine patterns
             all_discovered_patterns.extend(chunk_out_graphs)
             
-            # Optional: Limit total discovered patterns
             if len(all_discovered_patterns) > args.max_total_patterns:
                 print(f"Reached maximum total patterns ({args.max_total_patterns}). Stopping.")
                 break
@@ -131,7 +117,6 @@ def pattern_growth_streaming(dataset, task, args):
 
 def pattern_growth(dataset, task, args):
     start_time = time.time()
-    # init model - keeping original model initialization
     if args.method_type == "end2end":
         model = models.End2EndOrder(1, args.hidden_dim, args)
     elif args.method_type == "mlp":
@@ -146,7 +131,6 @@ def pattern_growth(dataset, task, args):
     if task == "graph-labeled":
         dataset, labels = dataset
 
-    # load data - preserve original node attributes during conversion
     neighs_pyg, neighs = [], []
     print(len(dataset), "graphs")
     print("search strategy:", args.search_strategy)
@@ -156,9 +140,7 @@ def pattern_growth(dataset, task, args):
         if task == "graph-labeled" and labels[i] != 0: continue
         if task == "graph-truncate" and i >= 1000: break
         if not type(graph) == nx.Graph:
-            # Preserve node and edge attributes during conversion
             graph = pyg_utils.to_networkx(graph).to_undirected()
-            # Ensure all original attributes are kept
             for node in graph.nodes():
                 if 'label' not in graph.nodes[node]:
                     graph.nodes[node]['label'] = str(node)
@@ -189,20 +171,16 @@ def pattern_growth(dataset, task, args):
                             subgraph = subgraph.subgraph(max(
                                 nx.connected_components(subgraph), key=len))
                         
-                        # Store original attributes before relabeling
                         orig_attrs = {n: subgraph.nodes[n].copy() for n in subgraph.nodes()}
                         edge_attrs = {(u,v): subgraph.edges[u,v].copy() 
                                     for u,v in subgraph.edges()}
                         
-                        # Relabel nodes while preserving attributes
                         mapping = {old: new for new, old in enumerate(subgraph.nodes())}
                         subgraph = nx.relabel_nodes(subgraph, mapping)
                         
-                        # Restore original attributes with new node IDs
                         for old, new in mapping.items():
                             subgraph.nodes[new].update(orig_attrs[old])
                         
-                        # Restore edge attributes with new node IDs
                         for (old_u, old_v), attrs in edge_attrs.items():
                             subgraph.edges[mapping[old_u], mapping[old_v]].update(attrs)
                         
@@ -211,7 +189,6 @@ def pattern_growth(dataset, task, args):
                         if args.node_anchored:
                             anchors.append(0)
 
-    # Original embedding computation
     embs = []
     if len(neighs) % args.batch_size != 0:
         print("WARNING: number of graphs not multiple of batch size")
@@ -228,7 +205,6 @@ def pattern_growth(dataset, task, args):
         embs_np = torch.stack(embs).numpy()
         plt.scatter(embs_np[:,0], embs_np[:,1], label="node neighborhood")
 
-    # Original search strategy execution
     if args.search_strategy == "mcts":
         assert args.method_type == "order"
         agent = MCTSSearchAgent(args.min_pattern_size, args.max_pattern_size,
@@ -258,11 +234,9 @@ def pattern_growth(dataset, task, args):
         
                 pos = nx.spring_layout(pattern, k=2.0, seed=42, iterations=50)
         
-                # Create a color mapping for unique labels
                 unique_labels = sorted(set(pattern.nodes[n].get('label', 'unknown') for n in pattern.nodes()))
                 label_color_map = {label: plt.cm.Set3(i) for i, label in enumerate(unique_labels)}
         
-                # Assign colors based on node labels
                 colors = []
                 node_sizes = []
                 node_shapes = []
@@ -270,17 +244,14 @@ def pattern_growth(dataset, task, args):
                     node_label = pattern.nodes[node].get('label', 'unknown')
                     
                     if args.node_anchored and i == 0:
-                        # Anchor node is red and square
                         colors.append('red')
                         node_sizes.append(5000)
-                        node_shapes.append('s')  # square
+                        node_shapes.append('s')  
                     else:
-                        # Other nodes colored by label
                         colors.append(label_color_map[node_label])
                         node_sizes.append(3000)
-                        node_shapes.append('o')  # circle
+                        node_shapes.append('o')  
         
-                # Draw nodes with different shapes
                 for shape in set(node_shapes):
                     shape_indices = [i for i, s in enumerate(node_shapes) if s == shape]
                     nx.draw_networkx_nodes(pattern, pos, 
