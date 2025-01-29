@@ -48,6 +48,7 @@ jobs:
             python -m subgraph_mining.decoder \
             --dataset=graph.pkl \
             --n_trials 1000 \
+            --node_anchored \
             --memory_efficient \
             --batch_size 32 \
             --memory_limit 500000
