@@ -89,6 +89,136 @@ def make_plant_dataset(size):
         graphs.append(graph)
     return graphs
 
+def visualize_pattern(pattern, args, count_by_size, filename_prefix=""):
+    """
+    Visualize a single pattern graph with improved error handling and layout
+    """
+    plt.figure(figsize=(15, 10))
+    
+    # Clear any existing plots
+    plt.clf()
+    
+    # Create node labels with error handling
+    node_labels = {}
+    for n in pattern.nodes():
+        try:
+            node_id = pattern.nodes[n].get('id', str(n))
+            node_label = pattern.nodes[n].get('label', 'unknown')
+            node_labels[n] = f"{node_id}:\n{node_label}"
+        except Exception as e:
+            print(f"Warning: Error creating label for node {n}: {e}")
+            node_labels[n] = str(n)
+    
+    # Create layout with error handling
+    try:
+        pos = nx.spring_layout(pattern, k=2.0, seed=42, iterations=50)
+    except Exception as e:
+        print(f"Warning: Error in spring layout, falling back to shell layout: {e}")
+        pos = nx.shell_layout(pattern)
+    
+    # Generate color scheme
+    unique_labels = sorted(set(pattern.nodes[n].get('label', 'unknown') 
+                             for n in pattern.nodes()))
+    color_map = plt.cm.Set3(np.linspace(0, 1, len(unique_labels)))
+    label_color_map = dict(zip(unique_labels, color_map))
+    
+    # Prepare node attributes
+    colors = []
+    node_sizes = []
+    node_shapes = []
+    
+    for i, node in enumerate(pattern.nodes()):
+        node_label = pattern.nodes[node].get('label', 'unknown')
+        if args.node_anchored and i == 0:
+            colors.append('red')
+            node_sizes.append(5000)
+            node_shapes.append('s')
+        else:
+            colors.append(label_color_map[node_label])
+            node_sizes.append(3000)
+            node_shapes.append('o')
+    
+    # Draw nodes by shape
+    for shape in set(node_shapes):
+        shape_indices = [i for i, s in enumerate(node_shapes) if s == shape]
+        node_list = [list(pattern.nodes())[i] for i in shape_indices]
+        try:
+            nx.draw_networkx_nodes(pattern, pos,
+                nodelist=node_list,
+                node_color=[colors[i] for i in shape_indices],
+                node_size=[node_sizes[i] for i in shape_indices],
+                node_shape=shape,
+                edgecolors='black',
+                linewidths=1.5)
+        except Exception as e:
+            print(f"Warning: Error drawing nodes with shape {shape}: {e}")
+    
+    # Draw edges
+    try:
+        nx.draw_networkx_edges(pattern, pos,
+            width=2,
+            edge_color='gray',
+            alpha=0.7)
+    except Exception as e:
+        print(f"Warning: Error drawing edges: {e}")
+    
+    # Draw node labels
+    try:
+        nx.draw_networkx_labels(pattern, pos,
+            labels=node_labels,
+            font_size=9,
+            font_weight='bold',
+            font_color='black',
+            bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+    except Exception as e:
+        print(f"Warning: Error drawing node labels: {e}")
+    
+    # Draw edge labels
+    try:
+        edge_labels = {(u,v): data.get('type', '')
+                      for u,v,data in pattern.edges(data=True)}
+        nx.draw_networkx_edge_labels(pattern, pos,
+            edge_labels=edge_labels,
+            font_size=8,
+            font_color='darkred',
+            bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+    except Exception as e:
+        print(f"Warning: Error drawing edge labels: {e}")
+    
+    plt.title(f"Pattern Graph (Size: {len(pattern)} nodes)")
+    plt.axis('off')
+    
+    # Generate filename
+    pattern_info = [f"{len(pattern)}-{count_by_size[len(pattern)]}"]
+    
+    node_types = sorted(set(pattern.nodes[n].get('label', '') 
+                          for n in pattern.nodes()))
+    if any(node_types):
+        pattern_info.append('nodes-' + '-'.join(node_types))
+    
+    edge_types = sorted(set(pattern.edges[e].get('type', '') 
+                          for e in pattern.edges()))
+    if any(edge_types):
+        pattern_info.append('edges-' + '-'.join(edge_types))
+    
+    filename = '_'.join(pattern_info)
+    if filename_prefix:
+        filename = f"{filename_prefix}_{filename}"
+    
+    # Save plot with error handling
+    try:
+        plt.tight_layout()
+        plt.savefig(f"plots/cluster/{filename}.png", 
+                   bbox_inches='tight', dpi=300)
+        plt.savefig(f"plots/cluster/{filename}.pdf", 
+                   bbox_inches='tight')
+    except Exception as e:
+        print(f"Warning: Error saving plot {filename}: {e}")
+    finally:
+        plt.close()
+    
+    return filename
+
 def pattern_growth_streaming(dataset, task, args):
     if len(dataset) == 1 and dataset[0].number_of_nodes() > 100000:
         graph = dataset[0]
@@ -234,88 +364,12 @@ def pattern_growth(dataset, task, args):
 
     count_by_size = defaultdict(int)
     for pattern in out_graphs:
-            try:
-                plt.figure(figsize=(15, 10))  
-        
-                node_labels = {}
-                for n in pattern.nodes():
-                    node_id = pattern.nodes[n].get('id', str(n))
-                    node_label = pattern.nodes[n].get('label', 'unknown')
-                    node_labels[n] = f"{node_id}:\n{node_label}"
-        
-                pos = nx.spring_layout(pattern, k=2.0, seed=42, iterations=50)
-        
-                unique_labels = sorted(set(pattern.nodes[n].get('label', 'unknown') for n in pattern.nodes()))
-                label_color_map = {label: plt.cm.Set3(i) for i, label in enumerate(unique_labels)}
-        
-                colors = []
-                node_sizes = []
-                node_shapes = []
-                for i, node in enumerate(pattern.nodes()):
-                    node_label = pattern.nodes[node].get('label', 'unknown')
-                    
-                    if args.node_anchored and i == 0:
-                        colors.append('red')
-                        node_sizes.append(5000)
-                        node_shapes.append('s')  
-                    else:
-                        colors.append(label_color_map[node_label])
-                        node_sizes.append(3000)
-                        node_shapes.append('o')  
-        
-                for shape in set(node_shapes):
-                    shape_indices = [i for i, s in enumerate(node_shapes) if s == shape]
-                    nx.draw_networkx_nodes(pattern, pos, 
-                                    nodelist=[list(pattern.nodes())[i] for i in shape_indices],
-                                    node_color=[colors[i] for i in shape_indices], 
-                                    node_size=[node_sizes[i] for i in shape_indices], 
-                                    node_shape=shape,
-                                    edgecolors='black', 
-                                    linewidths=1.5)
-        
-                nx.draw_networkx_edges(pattern, pos, 
-                                width=2,  
-                                edge_color='gray',  
-                                alpha=0.7)  
-        
-                nx.draw_networkx_labels(pattern, pos, 
-                                 labels=node_labels, 
-                                 font_size=9, 
-                                 font_weight='bold',
-                                 font_color='black',
-                                 bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
-        
-                edge_labels = {(u,v): data.get('type', '') 
-                        for u,v,data in pattern.edges(data=True)}
-                nx.draw_networkx_edge_labels(pattern, pos, 
-                                      edge_labels=edge_labels, 
-                                      font_size=8, 
-                                      font_color='darkred',  
-                                      bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
-        
-                plt.title(f"Pattern Graph (Size: {len(pattern)} nodes)")
-                plt.axis('off')  
-        
-                pattern_info = [f"{len(pattern)}-{count_by_size[len(pattern)]}"]
-        
-                node_types = sorted(set(pattern.nodes[n].get('label', '') for n in pattern.nodes()))
-                if any(node_types):
-                    pattern_info.append('nodes-' + '-'.join(node_types))
-            
-                edge_types = sorted(set(pattern.edges[e].get('type', '') for e in pattern.edges()))
-                if any(edge_types):
-                    pattern_info.append('edges-' + '-'.join(edge_types))
-        
-                filename = '_'.join(pattern_info)
-                plt.tight_layout()
-                plt.savefig(f"plots/cluster/{filename}.png", bbox_inches='tight', dpi=300)
-                plt.savefig(f"plots/cluster/{filename}.pdf", bbox_inches='tight')
-                plt.close()
-                count_by_size[len(pattern)] += 1
-        
-            except Exception as e:
-                print(f"Error visualizing pattern graph: {e}")
-                continue
+        try:
+            filename = visualize_pattern(pattern, args, count_by_size)
+            count_by_size[len(pattern)] += 1
+        except Exception as e:
+            print(f"Error processing pattern: {e}")
+            continue
 
     if not os.path.exists("results"):
         os.makedirs("results")
