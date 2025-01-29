@@ -39,6 +39,8 @@ import networkx as nx
 import pickle
 import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
+from functools import lru_cache
+import torch.cuda.amp
 
 class SearchAgent:
     """ Class for search strategies to identify frequent subgraphs in embedding space.
@@ -409,3 +411,214 @@ class GreedySearchAgent(SearchAgent):
             else:
                 print("Unrecognized rank method")
         return cand_patterns_uniq
+    
+class MemoryEfficientMCTSAgent(MCTSSearchAgent):
+    """Memory-efficient MCTS implementation that processes large graphs in streams"""
+    
+    def __init__(self, min_pattern_size, max_pattern_size, model, dataset,
+        embs, node_anchored=False, analyze=False, model_type="order",
+        out_batch_size=20, c_uct=0.7, memory_limit=1000000):
+        super().__init__(min_pattern_size, max_pattern_size, model, dataset,
+            embs, node_anchored=node_anchored, analyze=analyze,
+            model_type=model_type, out_batch_size=out_batch_size, c_uct=c_uct)
+        self.memory_limit = memory_limit
+        self.wl_hash_to_graphs = self._create_lru_cache(maxsize=10000)
+        
+    def _create_lru_cache(self, maxsize):
+        """Create a size-limited LRU cache for storing graph patterns"""
+        from functools import lru_cache
+        return lru_cache(maxsize=maxsize)
+        
+    def _stream_neighborhood(self, graph, start_node, max_nodes=1000):
+        """Stream neighborhoods instead of loading all at once"""
+        visited = {start_node}
+        frontier = set(graph.neighbors(start_node))
+        while frontier and len(visited) < max_nodes:
+            node = frontier.pop()
+            if node not in visited:
+                visited.add(node)
+                frontier.update(n for n in graph.neighbors(node) 
+                              if n not in visited)
+                yield node
+                
+    def _batch_embeddings(self, cand_neighs, batch_size=64):
+        """Process embeddings in batches"""
+        for i in range(0, len(cand_neighs), batch_size):
+            batch = cand_neighs[i:i+batch_size]
+            embs = self.model.emb_model(utils.batch_nx_graphs(
+                batch, anchors=self.node_anchored))
+            for emb in embs:
+                yield emb
+
+    def step(self):
+        """Memory-efficient implementation of the MCTS step"""
+        ps = np.array([len(g) for g in self.dataset], dtype=np.float32)
+        ps /= np.sum(ps)
+        graph_dist = stats.rv_discrete(values=(np.arange(len(self.dataset)), ps))
+
+        print("Size", self.max_size)
+        print(len(self.visited_seed_nodes), "distinct seeds")
+        
+        for simulation_n in tqdm(range(self.n_trials // 
+            (self.max_pattern_size+1-self.min_pattern_size))):
+            
+            # Clear memory periodically
+            if simulation_n % 100 == 0:
+                torch.cuda.empty_cache()
+            
+            # Stream process the graph exploration
+            graph_idx = np.arange(len(self.dataset))[graph_dist.rvs()]
+            graph = self.dataset[graph_idx] 
+            
+            # Smart seed selection
+            seed_scores = []
+            for _ in range(min(10, graph.number_of_nodes())):
+                start_node = random.choice(list(graph.nodes))
+                n_reachable = sum(1 for _ in self._stream_neighborhood(
+                    graph, start_node, max_nodes=self.min_pattern_size))
+                seed_scores.append((start_node, n_reachable))
+            start_node = max(seed_scores, key=lambda x: x[1])[0]
+            
+            # Process neighborhood in streams
+            neigh = [start_node]
+            visited = {start_node}
+            frontier = set()
+            
+            for next_node in self._stream_neighborhood(graph, start_node):
+                if len(neigh) >= self.max_size:
+                    break
+                    
+                # Build candidate neighborhood
+                cand_neigh = graph.subgraph(neigh + [next_node])
+                cand_emb = next(self._batch_embeddings([cand_neigh]))
+                
+                # Evaluate pattern
+                score = 0
+                n_embs = 0
+                for emb_batch in self.embs:
+                    score += torch.sum(self.model.predict((
+                        emb_batch.to(utils.get_device()), cand_emb))).item()
+                    n_embs += len(emb_batch)
+                    
+                # Update pattern if good
+                if score/n_embs > 0.5:  # Threshold for keeping pattern
+                    neigh.append(next_node)
+                    visited.add(next_node)
+                    frontier.update(n for n in graph.neighbors(next_node) 
+                                  if n not in visited)
+                
+                # Update visit counts with minimal memory
+                if len(neigh) >= self.min_pattern_size:
+                    pattern = graph.subgraph(neigh).copy()
+                    pattern_hash = utils.wl_hash(pattern,
+                        node_anchored=self.node_anchored)
+                    self.visit_counts[len(pattern)][pattern_hash] += 1
+                    
+            self.max_size += 1
+
+class MemoryEfficientGreedyAgent(GreedySearchAgent):
+    """Memory-efficient greedy search implementation"""
+    
+    def __init__(self, min_pattern_size, max_pattern_size, model, dataset,
+        embs, node_anchored=False, analyze=False, rank_method="counts",
+        model_type="order", out_batch_size=20, batch_size=64):
+        super().__init__(min_pattern_size, max_pattern_size, model, dataset,
+            embs, node_anchored=node_anchored, analyze=analyze,
+            rank_method=rank_method, model_type=model_type,
+            out_batch_size=out_batch_size)
+        self.batch_size = batch_size
+        
+    def _process_chunk(self, nodes, graph):
+        """Process a chunk of nodes efficiently"""
+        patterns = []
+        for start_node in nodes:
+            pattern = self._grow_pattern(graph, start_node)
+            if pattern is not None:
+                patterns.append(pattern)
+        return patterns
+        
+    def _grow_pattern(self, graph, start_node):
+        """Grow pattern from start node with memory constraints"""
+        neigh = [start_node]
+        visited = {start_node}
+        frontier = set(graph.neighbors(start_node))
+        
+        while frontier and len(neigh) < self.max_pattern_size:
+            # Process candidates in batches
+            best_score = float('inf')
+            best_node = None
+            
+            for i in range(0, len(frontier), self.batch_size):
+                batch_nodes = list(frontier)[i:i+self.batch_size]
+                cand_neighs = [graph.subgraph(neigh + [n]) for n in batch_nodes]
+                
+                # Get embeddings efficiently
+                with torch.no_grad(), torch.cuda.amp.autocast():
+                    cand_embs = self.model.emb_model(utils.batch_nx_graphs(
+                        cand_neighs, anchors=[neigh[0]] if self.node_anchored 
+                        else None))
+                    
+                    # Score candidates
+                    for node, emb in zip(batch_nodes, cand_embs):
+                        score = 0
+                        for emb_batch in self.embs:
+                            if self.model_type == "order":
+                                score -= torch.sum(torch.argmax(
+                                    self.model.clf_model(self.model.predict((
+                                    emb_batch.to(utils.get_device()),
+                                    emb)).unsqueeze(1)), axis=1)).item()
+                            elif self.model_type == "mlp":
+                                score += torch.sum(self.model(
+                                    emb_batch.to(utils.get_device()),
+                                    emb.unsqueeze(0).expand(len(emb_batch), -1)
+                                    )[:,0]).item()
+                                    
+                        if score < best_score:
+                            best_score = score
+                            best_node = node
+            
+            if best_node is None:
+                break
+                
+            # Update pattern
+            neigh.append(best_node)
+            visited.add(best_node)
+            frontier = set((frontier | set(graph.neighbors(best_node))) - 
+                         visited - {best_node})
+                
+        # Return pattern if large enough
+        if len(neigh) >= self.min_pattern_size:
+            pattern = graph.subgraph(neigh).copy()
+            return pattern
+        return None
+        
+    def step(self):
+        """Memory-efficient implementation of the greedy search step"""
+        torch.cuda.empty_cache()
+        
+        new_beam_sets = []
+        print("Processing beams from", len(set(b[0][-1] for b in self.beam_sets)),
+            "distinct graphs")
+            
+        for beam_set in tqdm(self.beam_sets):
+            patterns = []
+            for state in beam_set:
+                _, neigh, frontier, visited, graph_idx = state
+                graph = self.dataset[graph_idx]
+                
+                # Process frontier in chunks
+                chunk_size = min(self.batch_size, len(frontier))
+                for i in range(0, len(frontier), chunk_size):
+                    chunk = list(frontier)[i:i+chunk_size]
+                    chunk_patterns = self._process_chunk(chunk, graph)
+                    patterns.extend(chunk_patterns)
+                    
+                    # Clear GPU memory
+                    if i % (chunk_size * 10) == 0:
+                        torch.cuda.empty_cache()
+                        
+            # Keep best patterns
+            patterns.sort(key=len, reverse=True)
+            new_beam_sets.append(patterns[:self.n_beams])
+            
+        self.beam_sets = new_beam_sets

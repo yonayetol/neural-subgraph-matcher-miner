@@ -28,6 +28,12 @@ def parse_decoder(parser):
                         help='"greedy" or "mcts"')
     dec_parser.add_argument('--use_whole_graphs', action="store_true",
         help="whether to cluster whole graphs or sampled node neighborhoods")
+    dec_parser.add_argument('--memory_efficient', action='store_true',
+                   help='Use memory efficient search for large graphs')
+    dec_parser.add_argument('--batch_size', type=int, default=64,
+                   help='Batch size for processing embeddings')
+    dec_parser.add_argument('--memory_limit', type=int, default=1000000,
+                   help='Memory limit in number of patterns')
 
     dec_parser.set_defaults(out_path="results/out-patterns.p",
                         n_neighborhoods=10000,
