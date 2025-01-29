@@ -505,15 +505,14 @@ class MemoryEfficientGreedyAgent(GreedySearchAgent):
             pattern = graph.subgraph(neigh).copy()
             return pattern
         return None
-        
+
     def step(self):
-        """Memory-efficient implementation of the greedy search step"""
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
     
         new_beam_sets = []
         print("Processing beams from", len(set(b[0][-1] for b in self.beam_sets)),
-            "distinct graphs")
+          "distinct graphs")
         
         for beam_set in tqdm(self.beam_sets):
             patterns = []
@@ -526,13 +525,17 @@ class MemoryEfficientGreedyAgent(GreedySearchAgent):
             
                 # Process frontier in chunks
                 for i in range(0, len(frontier), chunk_size):
-                    chunk = list(frontier)[i:i+chunk_size]
-                    chunk_patterns = self._process_chunk(chunk, graph)
-                    patterns.extend(chunk_patterns)
-                
-                    # Clear GPU memory
-                    if torch.cuda.is_available() and i % (chunk_size * 10) == 0:
-                        torch.cuda.empty_cache()
+                    try:
+                        chunk = list(frontier)[i:i + chunk_size]
+                        chunk_patterns = self._process_chunk(chunk, graph)
+                        patterns.extend(chunk_patterns)
+                    
+                        # Clear GPU memory
+                        if torch.cuda.is_available() and i % (chunk_size * 10) == 0:
+                            torch.cuda.empty_cache()
+                    except Exception as e:
+                        print(f"Error processing chunk {i}: {e}")
+                        continue
                     
             # Keep best patterns
             patterns.sort(key=len, reverse=True)

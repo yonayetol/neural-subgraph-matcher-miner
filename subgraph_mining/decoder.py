@@ -46,28 +46,31 @@ import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
 
 def process_large_graph_in_chunks(graph, chunk_size=5000):
-    graph_chunks = []
+        graph_chunks = []
+        all_nodes = list(graph.nodes())
     
-    all_nodes = list(graph.nodes())
+        for i in range(0, len(all_nodes), chunk_size):
+            try:
+                chunk_nodes = all_nodes[i:i + chunk_size]
+            
+                # Create a subgraph for the current chunk
+                chunk_graph = graph.subgraph(chunk_nodes)
+            
+                # Extend the subgraph to include neighbors
+                extended_nodes = set(chunk_nodes)
+                for node in chunk_nodes:
+                    neighbors = list(graph.neighbors(node))
+                    extended_nodes.update(neighbors)
+                    if len(extended_nodes) > chunk_size * 1.2:
+                        break  # Limit the size of the extended subgraph
+            
+                # Add the extended subgraph to the list of chunks
+                graph_chunks.append(graph.subgraph(extended_nodes))
+            except Exception as e:
+                print(f"Error processing chunk {i}: {e}")
+                continue
     
-    for i in range(0, len(all_nodes), chunk_size):
-        chunk_nodes = all_nodes[i:i+chunk_size]
-        
-        chunk_graph = graph.subgraph(chunk_nodes)
-        
-        extended_nodes = set(chunk_nodes)
-        for node in chunk_nodes:
-            neighbors = list(graph.neighbors(node))
-            for neighbor in neighbors:
-                if neighbor not in extended_nodes:
-                    extended_nodes.add(neighbor)
-                    if len(extended_nodes) > chunk_size * 1.2:  
-                        break
-        
-        chunk_subgraph = graph.subgraph(extended_nodes)
-        graph_chunks.append(chunk_subgraph)
-    
-    return graph_chunks
+        return graph_chunks
 
 def make_plant_dataset(size):
     generator = combined_syn.get_generator([size])
