@@ -44,8 +44,6 @@ import networkx as nx
 import pickle
 import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
-from functools import lru_cache
-import torch.cuda.amp
 
 def process_large_graph_in_chunks(graph, chunk_size=5000):
     graph_chunks = []
