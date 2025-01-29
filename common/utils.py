@@ -274,40 +274,54 @@ def standardize_graph(graph: nx.Graph, anchor: int = None) -> nx.Graph:
     return g
 
 def batch_nx_graphs(graphs, anchors=None):
-    # Initialize feature augmenter
-    augmenter = feature_preprocess.FeatureAugment()
+    """Batch multiple networkx graphs into a single graph with multiple components.
     
-    # Process graphs with proper attribute handling
-    processed_graphs = []
+    Args:
+        graphs (list): List of networkx graphs to batch
+        anchors (list, optional): List of anchor nodes, one per graph. Must have same length as graphs if provided.
+    
+    Returns:
+        networkx.Graph: A single graph containing all input graphs as disconnected components
+    
+    Raises:
+        ValueError: If anchors is provided but length doesn't match number of graphs
+    """
+    # Input validation
+    if anchors is not None and len(anchors) != len(graphs):
+        raise ValueError(f"Number of anchors ({len(anchors)}) must match number of graphs ({len(graphs)})")
+    
+    # Create empty graph to hold all components
+    batched_graph = nx.Graph()
+    
+    node_offset = 0
+    node_to_graph_idx = {}
+    
+    # Add each graph as a component
     for i, graph in enumerate(graphs):
-        anchor = anchors[i] if anchors is not None else None
-        try:
-            # Standardize graph attributes
-            std_graph = standardize_graph(graph, anchor)
+        # Relabel nodes to avoid conflicts
+        mapping = {node: node + node_offset for node in graph.nodes()}
+        component = nx.relabel_nodes(graph.copy(), mapping)
+        
+        # Track which nodes belong to which graph
+        for node in component.nodes():
+            node_to_graph_idx[node] = i
             
-            # Convert to DeepSnap format
-            ds_graph = DSGraph(std_graph)
-            processed_graphs.append(ds_graph)
-            
-        except Exception as e:
-            print(f"Warning: Error processing graph {i}: {str(e)}")
-            # Create minimal graph with basic features if conversion fails
-            minimal_graph = nx.Graph()
-            minimal_graph.add_nodes_from(graph.nodes())
-            minimal_graph.add_edges_from(graph.edges())
-            for node in minimal_graph.nodes():
-                minimal_graph.nodes[node]['node_feature'] = torch.tensor([1.0])
-            processed_graphs.append(DSGraph(minimal_graph))
+            # Handle anchor nodes
+            if anchors is not None:
+                is_anchor = 1 if node == mapping[anchors[i]] else 0
+                component.nodes[node]['anchor'] = is_anchor
+        
+        # Add component to batched graph
+        batched_graph.add_nodes_from(component.nodes(data=True))
+        batched_graph.add_edges_from(component.edges(data=True))
+        
+        # Update offset for next graph
+        node_offset += len(graph)
     
-    # Create batch
-    batch = Batch.from_data_list(processed_graphs)
+    # Add graph index information to nodes
+    nx.set_node_attributes(batched_graph, node_to_graph_idx, 'graph_idx')
     
-    # Suppress the specific warning during augmentation
-    with warnings.catch_warnings():
-        warnings.filterwarnings('ignore', message='Unknown type of key*')
-        batch = augmenter.augment(batch)
-    
-    return batch.to(get_device())
+    return batched_graph
 
 def get_device():
     """Get PyTorch device (GPU if available, otherwise CPU)"""
