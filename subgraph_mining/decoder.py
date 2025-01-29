@@ -101,6 +101,8 @@ def pattern_growth_streaming(dataset, task, args):
         print(f"Processing chunk {chunk_index + 1}/{len(dataset)}")
         
         try:
+            # Force analyze=True in args for visualization
+            args.analyze = True
             chunk_out_graphs = pattern_growth([chunk_dataset], task, args)
             
             all_discovered_patterns.extend(chunk_out_graphs)
