@@ -510,32 +510,34 @@ class MemoryEfficientGreedyAgent(GreedySearchAgent):
         """Memory-efficient implementation of the greedy search step"""
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-        
+    
         new_beam_sets = []
         print("Processing beams from", len(set(b[0][-1] for b in self.beam_sets)),
             "distinct graphs")
-            
+        
         for beam_set in tqdm(self.beam_sets):
             patterns = []
             for state in beam_set:
                 _, neigh, frontier, visited, graph_idx = state
                 graph = self.dataset[graph_idx]
-                
+            
+                # Ensure chunk_size is at least 1
+                chunk_size = max(1, min(self.batch_size, len(frontier)))
+            
                 # Process frontier in chunks
-                chunk_size = min(self.batch_size, len(frontier))
                 for i in range(0, len(frontier), chunk_size):
                     chunk = list(frontier)[i:i+chunk_size]
                     chunk_patterns = self._process_chunk(chunk, graph)
                     patterns.extend(chunk_patterns)
-                    
+                
                     # Clear GPU memory
                     if torch.cuda.is_available() and i % (chunk_size * 10) == 0:
                         torch.cuda.empty_cache()
-                        
+                    
             # Keep best patterns
             patterns.sort(key=len, reverse=True)
             new_beam_sets.append(patterns[:self.n_beams])
-            
+        
         self.beam_sets = new_beam_sets
 
 class MemoryEfficientMCTSAgent(MCTSSearchAgent):
