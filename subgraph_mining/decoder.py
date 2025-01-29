@@ -235,17 +235,22 @@ def pattern_growth(dataset, task, args):
     x = int(time.time() - start_time)
     print(x // 60, "mins", x % 60, "secs")
 
+    print("\nStarting pattern visualization...")
     count_by_size = defaultdict(int)
-    for pattern in out_graphs:
+    for i, pattern in enumerate(out_graphs):
+            print(f"\nProcessing pattern {i+1}/{len(out_graphs)}")
             try:
-                plt.figure(figsize=(15, 10))  
-        
+                print(f"Creating figure for pattern with {len(pattern)} nodes")
+                plt.figure(figsize=(15, 10))
+            
+                print("Setting up node labels...")
                 node_labels = {}
                 for n in pattern.nodes():
                     node_id = pattern.nodes[n].get('id', str(n))
                     node_label = pattern.nodes[n].get('label', 'unknown')
                     node_labels[n] = f"{node_id}:\n{node_label}"
-        
+            
+                print("Computing layout...")
                 pos = nx.spring_layout(pattern, k=2.0, seed=42, iterations=50)
         
                 unique_labels = sorted(set(pattern.nodes[n].get('label', 'unknown') for n in pattern.nodes()))
@@ -310,14 +315,18 @@ def pattern_growth(dataset, task, args):
                     pattern_info.append('edges-' + '-'.join(edge_types))
         
                 filename = '_'.join(pattern_info)
+                print(f"Saving plot to {filename}")
                 plt.tight_layout()
                 plt.savefig(f"plots/cluster/{filename}.png", bbox_inches='tight', dpi=300)
                 plt.savefig(f"plots/cluster/{filename}.pdf", bbox_inches='tight')
                 plt.close()
                 count_by_size[len(pattern)] += 1
+                print(f"Successfully saved plot {filename}")
         
             except Exception as e:
                 print(f"Error visualizing pattern graph: {e}")
+                import traceback
+                traceback.print_exc()
                 continue
 
     if not os.path.exists("results"):
