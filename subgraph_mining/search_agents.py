@@ -410,10 +410,6 @@ class GreedySearchAgent(SearchAgent):
             else:
                 print("Unrecognized rank method")
         return cand_patterns_uniq
-    
-# Remove the torch.cuda.amp import since it's not available in PyTorch 1.4.0
-import torch
-import torch.nn as nn
 
 class MemoryEfficientGreedyAgent(GreedySearchAgent):
     """Memory-efficient greedy search implementation with legacy AMP support"""
@@ -447,31 +443,33 @@ class MemoryEfficientGreedyAgent(GreedySearchAgent):
         neigh = [start_node]
         visited = {start_node}
         frontier = set(graph.neighbors(start_node))
-        
+    
         while frontier and len(neigh) < self.max_pattern_size:
             best_score = float('inf')
             best_node = None
-            
+        
             for i in range(0, len(frontier), self.batch_size):
                 batch_nodes = list(frontier)[i:i+self.batch_size]
                 cand_neighs = [graph.subgraph(neigh + [n]) for n in batch_nodes]
-                
+            
+                # Ensure the number of anchors matches the number of graphs
+                anchors = [neigh[0]] * len(cand_neighs) if self.node_anchored else None
+            
                 # Get embeddings efficiently using FP16 if available
                 with torch.no_grad():
                     cand_embs = self.model.emb_model(utils.batch_nx_graphs(
-                        cand_neighs, anchors=[neigh[0]] if self.node_anchored 
-                        else None))
-                    
+                        cand_neighs, anchors=anchors))
+                
                     if self.use_fp16:
                         cand_embs = self._half_tensor(cand_embs)
-                    
+                
                     # Score candidates
                     for node, emb in zip(batch_nodes, cand_embs):
                         score = 0
                         for emb_batch in self.embs:
                             if self.use_fp16:
                                 emb_batch = self._half_tensor(emb_batch)
-                                
+                            
                             if self.model_type == "order":
                                 pred = self.model.predict((
                                     emb_batch.to(utils.get_device()),
@@ -488,20 +486,20 @@ class MemoryEfficientGreedyAgent(GreedySearchAgent):
                                 if self.use_fp16:
                                     pred = pred.float()
                                 score += torch.sum(pred[:,0]).item()
-                                    
+                                
                         if score < best_score:
                             best_score = score
                             best_node = node
-            
+        
             if best_node is None:
                 break
-                
+            
             # Update pattern
             neigh.append(best_node)
             visited.add(best_node)
             frontier = set((frontier | set(graph.neighbors(best_node))) - 
-                         visited - {best_node})
-                
+                     visited - {best_node})
+            
         # Return pattern if large enough
         if len(neigh) >= self.min_pattern_size:
             pattern = graph.subgraph(neigh).copy()
