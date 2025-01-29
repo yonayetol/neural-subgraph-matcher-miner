@@ -27,7 +27,7 @@ from common import utils
 from common import combined_syn
 from subgraph_mining.config import parse_decoder
 from subgraph_matching.config import parse_encoder
-from subgraph_mining.search_agents import GreedySearchAgent, MCTSSearchAgent, MemoryEfficientMCTSAgent, MemoryEfficientGreedyAgent
+from subgraph_mining.search_agents import GreedySearchAgent, MCTSSearchAgent
 
 import matplotlib.pyplot as plt
 
@@ -44,33 +44,6 @@ import networkx as nx
 import pickle
 import torch.multiprocessing as mp
 from sklearn.decomposition import PCA
-
-def process_large_graph_in_chunks(graph, chunk_size=5000):
-        graph_chunks = []
-        all_nodes = list(graph.nodes())
-    
-        for i in range(0, len(all_nodes), chunk_size):
-            try:
-                chunk_nodes = all_nodes[i:i + chunk_size]
-            
-                # Create a subgraph for the current chunk
-                chunk_graph = graph.subgraph(chunk_nodes)
-            
-                # Extend the subgraph to include neighbors
-                extended_nodes = set(chunk_nodes)
-                for node in chunk_nodes:
-                    neighbors = list(graph.neighbors(node))
-                    extended_nodes.update(neighbors)
-                    if len(extended_nodes) > chunk_size * 1.2:
-                        break  # Limit the size of the extended subgraph
-            
-                # Add the extended subgraph to the list of chunks
-                graph_chunks.append(graph.subgraph(extended_nodes))
-            except Exception as e:
-                print(f"Error processing chunk {i}: {e}")
-                continue
-    
-        return graph_chunks
 
 def make_plant_dataset(size):
     generator = combined_syn.get_generator([size])
@@ -92,37 +65,9 @@ def make_plant_dataset(size):
         graphs.append(graph)
     return graphs
 
-def pattern_growth_streaming(dataset, task, args):
-    if len(dataset) == 1 and dataset[0].number_of_nodes() > 100000:
-        graph = dataset[0]
-        graph_chunks = process_large_graph_in_chunks(graph, chunk_size=args.chunk_size)
-        dataset = graph_chunks
-    
-    all_discovered_patterns = []
-    
-    for chunk_index, chunk_dataset in enumerate(dataset):
-        print(f"Processing chunk {chunk_index + 1}/{len(dataset)}")
-        
-        try:
-            chunk_out_graphs = pattern_growth([chunk_dataset], task, args)
-            
-            all_discovered_patterns.extend(chunk_out_graphs)
-            
-            if len(all_discovered_patterns) > args.max_total_patterns:
-                print(f"Reached maximum total patterns ({args.max_total_patterns}). Stopping.")
-                break
-        
-        except Exception as e:
-            print(f"Error processing chunk {chunk_index}: {e}")
-            continue
-    
-    return all_discovered_patterns
-
 def pattern_growth(dataset, task, args):
-    os.makedirs("plots", exist_ok=True)
-    os.makedirs("plots/cluster", exist_ok=True)
-    
     start_time = time.time()
+    # init model - keeping original model initialization
     if args.method_type == "end2end":
         model = models.End2EndOrder(1, args.hidden_dim, args)
     elif args.method_type == "mlp":
@@ -137,6 +82,7 @@ def pattern_growth(dataset, task, args):
     if task == "graph-labeled":
         dataset, labels = dataset
 
+    # load data - preserve original node attributes during conversion
     neighs_pyg, neighs = [], []
     print(len(dataset), "graphs")
     print("search strategy:", args.search_strategy)
@@ -146,7 +92,9 @@ def pattern_growth(dataset, task, args):
         if task == "graph-labeled" and labels[i] != 0: continue
         if task == "graph-truncate" and i >= 1000: break
         if not type(graph) == nx.Graph:
+            # Preserve node and edge attributes during conversion
             graph = pyg_utils.to_networkx(graph).to_undirected()
+            # Ensure all original attributes are kept
             for node in graph.nodes():
                 if 'label' not in graph.nodes[node]:
                     graph.nodes[node]['label'] = str(node)
@@ -177,16 +125,20 @@ def pattern_growth(dataset, task, args):
                             subgraph = subgraph.subgraph(max(
                                 nx.connected_components(subgraph), key=len))
                         
+                        # Store original attributes before relabeling
                         orig_attrs = {n: subgraph.nodes[n].copy() for n in subgraph.nodes()}
                         edge_attrs = {(u,v): subgraph.edges[u,v].copy() 
                                     for u,v in subgraph.edges()}
                         
+                        # Relabel nodes while preserving attributes
                         mapping = {old: new for new, old in enumerate(subgraph.nodes())}
                         subgraph = nx.relabel_nodes(subgraph, mapping)
                         
+                        # Restore original attributes with new node IDs
                         for old, new in mapping.items():
                             subgraph.nodes[new].update(orig_attrs[old])
                         
+                        # Restore edge attributes with new node IDs
                         for (old_u, old_v), attrs in edge_attrs.items():
                             subgraph.edges[mapping[old_u], mapping[old_v]].update(attrs)
                         
@@ -195,6 +147,7 @@ def pattern_growth(dataset, task, args):
                         if args.node_anchored:
                             anchors.append(0)
 
+    # Original embedding computation
     embs = []
     if len(neighs) % args.batch_size != 0:
         print("WARNING: number of graphs not multiple of batch size")
@@ -211,27 +164,17 @@ def pattern_growth(dataset, task, args):
         embs_np = torch.stack(embs).numpy()
         plt.scatter(embs_np[:,0], embs_np[:,1], label="node neighborhood")
 
+    # Original search strategy execution
     if args.search_strategy == "mcts":
         assert args.method_type == "order"
-        if len(graphs[0].nodes()) > 100000:  
-            agent = MemoryEfficientMCTSAgent(args.min_pattern_size, args.max_pattern_size,
-                model, graphs, embs, node_anchored=args.node_anchored,
-                analyze=args.analyze, out_batch_size=args.out_batch_size)
-        else:
-            agent = MCTSSearchAgent(args.min_pattern_size, args.max_pattern_size,
-                model, graphs, embs, node_anchored=args.node_anchored,
-                analyze=args.analyze, out_batch_size=args.out_batch_size)
+        agent = MCTSSearchAgent(args.min_pattern_size, args.max_pattern_size,
+            model, graphs, embs, node_anchored=args.node_anchored,
+            analyze=args.analyze, out_batch_size=args.out_batch_size)
     elif args.search_strategy == "greedy":
-        if len(graphs[0].nodes()) > 100000:  
-            agent = MemoryEfficientGreedyAgent(args.min_pattern_size, args.max_pattern_size,
-                model, graphs, embs, node_anchored=args.node_anchored,
-                analyze=args.analyze, model_type=args.method_type,
-                out_batch_size=args.out_batch_size)
-        else:
-            agent = GreedySearchAgent(args.min_pattern_size, args.max_pattern_size,
-                model, graphs, embs, node_anchored=args.node_anchored,
-                analyze=args.analyze, model_type=args.method_type,
-                out_batch_size=args.out_batch_size)
+        agent = GreedySearchAgent(args.min_pattern_size, args.max_pattern_size,
+            model, graphs, embs, node_anchored=args.node_anchored,
+            analyze=args.analyze, model_type=args.method_type,
+            out_batch_size=args.out_batch_size)
     out_graphs = agent.run_search(args.n_trials)
     
     print(time.time() - start_time, "TOTAL TIME")
@@ -240,105 +183,98 @@ def pattern_growth(dataset, task, args):
 
     count_by_size = defaultdict(int)
     for pattern in out_graphs:
-        try:
-            plt.figure(figsize=(15, 10))
+            try:
+                plt.figure(figsize=(15, 10))  
+        
+                node_labels = {}
+                for n in pattern.nodes():
+                    node_id = pattern.nodes[n].get('id', str(n))
+                    node_label = pattern.nodes[n].get('label', 'unknown')
+                    node_labels[n] = f"{node_id}:\n{node_label}"
+        
+                pos = nx.spring_layout(pattern, k=2.0, seed=42, iterations=50)
+        
+                # Create a color mapping for unique labels
+                unique_labels = sorted(set(pattern.nodes[n].get('label', 'unknown') for n in pattern.nodes()))
+                label_color_map = {label: plt.cm.Set3(i) for i, label in enumerate(unique_labels)}
+        
+                # Assign colors based on node labels
+                colors = []
+                node_sizes = []
+                node_shapes = []
+                for i, node in enumerate(pattern.nodes()):
+                    node_label = pattern.nodes[node].get('label', 'unknown')
+                    
+                    if args.node_anchored and i == 0:
+                        # Anchor node is red and square
+                        colors.append('red')
+                        node_sizes.append(5000)
+                        node_shapes.append('s')  # square
+                    else:
+                        # Other nodes colored by label
+                        colors.append(label_color_map[node_label])
+                        node_sizes.append(3000)
+                        node_shapes.append('o')  # circle
+        
+                # Draw nodes with different shapes
+                for shape in set(node_shapes):
+                    shape_indices = [i for i, s in enumerate(node_shapes) if s == shape]
+                    nx.draw_networkx_nodes(pattern, pos, 
+                                    nodelist=[list(pattern.nodes())[i] for i in shape_indices],
+                                    node_color=[colors[i] for i in shape_indices], 
+                                    node_size=[node_sizes[i] for i in shape_indices], 
+                                    node_shape=shape,
+                                    edgecolors='black', 
+                                    linewidths=1.5)
+        
+                nx.draw_networkx_edges(pattern, pos, 
+                                width=2,  
+                                edge_color='gray',  
+                                alpha=0.7)  
+        
+                nx.draw_networkx_labels(pattern, pos, 
+                                 labels=node_labels, 
+                                 font_size=9, 
+                                 font_weight='bold',
+                                 font_color='black',
+                                 bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+        
+                edge_labels = {(u,v): data.get('type', '') 
+                        for u,v,data in pattern.edges(data=True)}
+                nx.draw_networkx_edge_labels(pattern, pos, 
+                                      edge_labels=edge_labels, 
+                                      font_size=8, 
+                                      font_color='darkred',  
+                                      bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
+        
+                plt.title(f"Pattern Graph (Size: {len(pattern)} nodes)")
+                plt.axis('off')  
+        
+                pattern_info = [f"{len(pattern)}-{count_by_size[len(pattern)]}"]
+        
+                node_types = sorted(set(pattern.nodes[n].get('label', '') for n in pattern.nodes()))
+                if any(node_types):
+                    pattern_info.append('nodes-' + '-'.join(node_types))
             
-            # Clear any existing plots
-            plt.clf()
-            
-            node_labels = {}
-            for n in pattern.nodes():
-                node_id = pattern.nodes[n].get('id', str(n))
-                node_label = pattern.nodes[n].get('label', 'unknown')
-                node_labels[n] = f"{node_id}:\n{node_label}"
-            
-            pos = nx.spring_layout(pattern, k=2.0, seed=42, iterations=50)
-            
-            unique_labels = sorted(set(pattern.nodes[n].get('label', 'unknown') for n in pattern.nodes()))
-            label_color_map = {label: plt.cm.Set3(i) for i, label in enumerate(unique_labels)}
-            
-            colors = []
-            node_sizes = []
-            node_shapes = []
-            for i, node in enumerate(pattern.nodes()):
-                node_label = pattern.nodes[node].get('label', 'unknown')
-                
-                if args.node_anchored and i == 0:
-                    colors.append('red')
-                    node_sizes.append(5000)
-                    node_shapes.append('s')
-                else:
-                    colors.append(label_color_map[node_label])
-                    node_sizes.append(3000)
-                    node_shapes.append('o')
-            
-            # Draw nodes with different shapes
-            for shape in set(node_shapes):
-                shape_indices = [i for i, s in enumerate(node_shapes) if s == shape]
-                nx.draw_networkx_nodes(pattern, pos,
-                                nodelist=[list(pattern.nodes())[i] for i in shape_indices],
-                                node_color=[colors[i] for i in shape_indices],
-                                node_size=[node_sizes[i] for i in shape_indices],
-                                node_shape=shape,
-                                edgecolors='black',
-                                linewidths=1.5)
-            
-            # Draw edges and labels
-            nx.draw_networkx_edges(pattern, pos,
-                            width=2,
-                            edge_color='gray',
-                            alpha=0.7)
-            
-            nx.draw_networkx_labels(pattern, pos,
-                             labels=node_labels,
-                             font_size=9,
-                             font_weight='bold',
-                             font_color='black',
-                             bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
-            
-            edge_labels = {(u,v): data.get('type', '')
-                    for u,v,data in pattern.edges(data=True)}
-            nx.draw_networkx_edge_labels(pattern, pos,
-                                  edge_labels=edge_labels,
-                                  font_size=8,
-                                  font_color='darkred',
-                                  bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
-            
-            plt.title(f"Pattern Graph (Size: {len(pattern)} nodes)")
-            plt.axis('off')
-            
-            # Create filename with pattern information
-            pattern_info = [f"{len(pattern)}-{count_by_size[len(pattern)]}"]
-            
-            node_types = sorted(set(pattern.nodes[n].get('label', '') for n in pattern.nodes()))
-            if any(node_types):
-                pattern_info.append('nodes-' + '-'.join(node_types))
-            
-            edge_types = sorted(set(pattern.edges[e].get('type', '') for e in pattern.edges()))
-            if any(edge_types):
-                pattern_info.append('edges-' + '-'.join(edge_types))
-            
-            filename = '_'.join(pattern_info)
-            
-            # Save plots with tight layout and high DPI
-            plt.tight_layout()
-            print(f"Saving plot to plots/cluster/{filename}.png")
-            plt.savefig(f"plots/cluster/{filename}.png", bbox_inches='tight', dpi=300)
-            plt.savefig(f"plots/cluster/{filename}.pdf", bbox_inches='tight')
-            plt.close()
-            
-            count_by_size[len(pattern)] += 1
-            
-        except Exception as e:
-            print(f"Error visualizing pattern graph: {e}")
-            continue
+                edge_types = sorted(set(pattern.edges[e].get('type', '') for e in pattern.edges()))
+                if any(edge_types):
+                    pattern_info.append('edges-' + '-'.join(edge_types))
+        
+                filename = '_'.join(pattern_info)
+                plt.tight_layout()
+                plt.savefig(f"plots/cluster/{filename}.png", bbox_inches='tight', dpi=300)
+                plt.savefig(f"plots/cluster/{filename}.pdf", bbox_inches='tight')
+                plt.close()
+                count_by_size[len(pattern)] += 1
+        
+            except Exception as e:
+                print(f"Error visualizing pattern graph: {e}")
+                continue
 
     if not os.path.exists("results"):
         os.makedirs("results")
     with open(args.out_path, "wb") as f:
         pickle.dump(out_graphs, f)
-    
-    return out_graphs
 
 def main():
     if not os.path.exists("plots/cluster"):
