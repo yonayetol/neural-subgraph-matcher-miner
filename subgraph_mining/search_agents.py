@@ -484,13 +484,11 @@ class MemoryEfficientGreedyAgent(GreedySearchAgent):
             for v in pattern.nodes:
                 pattern.nodes[v]["anchor"] = 1 if v == neigh[0] else 0
             
-            # Add to pattern tracking for visualization
             if self.analyze:
                 emb = self.model.emb_model(utils.batch_nx_graphs(
                     [pattern], anchors=[neigh[0]] if self.node_anchored else None)).squeeze(0)
                 self.analyze_embs.append([emb.detach().cpu().numpy()])
             
-            # Track pattern for ranking
             self.cand_patterns[len(pattern)].append((best_score, pattern))
             if self.rank_method in ["counts", "hybrid"]:
                 self.counts[len(pattern)][utils.wl_hash(pattern,
@@ -599,15 +597,12 @@ class MemoryEfficientMCTSAgent(MCTSSearchAgent):
         for simulation_n in tqdm(range(self.n_trials // 
             (self.max_pattern_size+1-self.min_pattern_size))):
             
-            # Clear memory periodically
             if simulation_n % 100 == 0 and torch.cuda.is_available():
                 torch.cuda.empty_cache()
             
-            # Stream process the graph exploration
             graph_idx = np.arange(len(self.dataset))[graph_dist.rvs()]
             graph = self.dataset[graph_idx] 
             
-            # Smart seed selection
             seed_scores = []
             for _ in range(min(10, graph.number_of_nodes())):
                 start_node = random.choice(list(graph.nodes))
@@ -616,7 +611,6 @@ class MemoryEfficientMCTSAgent(MCTSSearchAgent):
                 seed_scores.append((start_node, n_reachable))
             start_node = max(seed_scores, key=lambda x: x[1])[0]
             
-            # Process neighborhood in streams
             neigh = [start_node]
             visited = {start_node}
             frontier = set()
@@ -625,11 +619,9 @@ class MemoryEfficientMCTSAgent(MCTSSearchAgent):
                 if len(neigh) >= self.max_size:
                     break
                     
-                # Build candidate neighborhood
                 cand_neigh = graph.subgraph(neigh + [next_node])
                 cand_emb = next(self._batch_embeddings([cand_neigh]))
                 
-                # Evaluate pattern
                 score = 0
                 n_embs = 0
                 for emb_batch in self.embs:
@@ -642,14 +634,12 @@ class MemoryEfficientMCTSAgent(MCTSSearchAgent):
                     score += torch.sum(pred).item()
                     n_embs += len(emb_batch)
                     
-                # Update pattern if good
-                if score/n_embs > 0.5:  # Threshold for keeping pattern
+                if score/n_embs > 0.5:  
                     neigh.append(next_node)
                     visited.add(next_node)
                     frontier.update(n for n in graph.neighbors(next_node) 
                                   if n not in visited)
                 
-                # Update visit counts with minimal memory
                 if len(neigh) >= self.min_pattern_size:
                     pattern = graph.subgraph(neigh).copy()
                     pattern_hash = utils.wl_hash(pattern,
