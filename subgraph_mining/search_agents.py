@@ -643,12 +643,11 @@ class MemoryEfficientMCTSAgent(MCTSSearchAgent):
                     score += torch.sum(pred).item()
                     n_embs += len(emb_batch)
                     
-                if score/n_embs > 0.5:  
+                if n_embs > 0 and score/n_embs > 0.5:  
                     neigh.append(next_node)
                     visited.add(next_node)
                     frontier.update(n for n in graph.neighbors(next_node) 
-                                  if n not in visited)
-                
+                        if n not in visited)
                 if len(neigh) >= self.min_pattern_size:
                     pattern = graph.subgraph(neigh).copy()
                     pattern_hash = utils.wl_hash(pattern,
