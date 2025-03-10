@@ -126,7 +126,6 @@ class MCTSSearchAgent(SearchAgent):
     def is_search_done(self):
         return self.max_size == self.max_pattern_size + 1
 
-    # returns whether there are at least n nodes reachable from start_node in graph
     def has_min_reachable_nodes(self, graph, start_node, n):
         for depth_limit in range(n+1):
             edges = nx.bfs_edges(graph, start_node, depth_limit=depth_limit)
@@ -197,8 +196,11 @@ class MCTSSearchAgent(SearchAgent):
                         score += torch.sum(self.model.predict((
                             emb_batch.to(utils.get_device()), cand_emb))).item()
                         n_embs += len(emb_batch)
-                    v_score = -np.log(score/n_embs + 1) + 1
-                    # get wl hash of next state
+                    EPS = 1e-10  
+                    if n_embs > 0:
+                        v_score = -np.log(score/n_embs + 1) + 1
+                    else:
+                        v_score = 0  
                     neigh_g = graph.subgraph(neigh + [cand_node]).copy()
                     neigh_g.remove_edges_from(nx.selfloop_edges(neigh_g))
                     for v in neigh_g.nodes:
