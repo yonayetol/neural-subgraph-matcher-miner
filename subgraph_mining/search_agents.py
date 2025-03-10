@@ -576,18 +576,24 @@ class MemoryEfficientMCTSAgent(MCTSSearchAgent):
         """Process embeddings in batches with FP16 support"""
         for i in range(0, len(cand_neighs), batch_size):
             batch = cand_neighs[i:i+batch_size]
+            # Filter out graphs with no edges
+            valid_batch = [g for g in batch if g.number_of_edges() > 0]
+        
+            # Skip if no valid graphs in this batch
+            if not valid_batch:
+                continue
+            
             anchors = None
             if self.node_anchored:
-                anchors = [list(g.nodes)[0] for g in batch]
-            
+                anchors = [list(g.nodes)[0] for g in valid_batch]
+        
             with torch.no_grad():
                 embs = self.model.emb_model(utils.batch_nx_graphs(
-                    batch, anchors=anchors))
+                    valid_batch, anchors=anchors))
                 if self.use_fp16:
                     embs = self._half_tensor(embs)
                 for emb in embs:
                     yield emb
-
     def step(self):
         """Memory-efficient implementation of the MCTS step with FP16 support"""
         if torch.cuda.is_available():
@@ -628,26 +634,31 @@ class MemoryEfficientMCTSAgent(MCTSSearchAgent):
                 cand_neigh = graph.subgraph(neigh + [next_node])
                 if self.node_anchored:
                     for v in cand_neigh.nodes:
-                        cand_neigh.nodes[v]["anchor"] = 1 if v == neigh[0] else 0       
-                cand_emb = next(self._batch_embeddings([cand_neigh]))
-                
-                score = 0
-                n_embs = 0
-                for emb_batch in self.embs:
-                    if self.use_fp16:
-                        emb_batch = self._half_tensor(emb_batch)
-                    pred = self.model.predict((
-                        emb_batch.to(utils.get_device()), cand_emb))
-                    if self.use_fp16:
-                        pred = pred.float()
-                    score += torch.sum(pred).item()
-                    n_embs += len(emb_batch)
-                    
-                if n_embs > 0 and score/n_embs > 0.5:  
-                    neigh.append(next_node)
-                    visited.add(next_node)
-                    frontier.update(n for n in graph.neighbors(next_node) 
-                        if n not in visited)
+                        cand_neigh.nodes[v]["anchor"] = 1 if v == neigh[0] else 0
+
+                if cand_neigh.number_of_edges() > 0:
+                    try:
+                        cand_emb = next(self._batch_embeddings([cand_neigh]))
+        
+                        score = 0
+                        n_embs = 0
+                        for emb_batch in self.embs:
+                            if self.use_fp16:
+                                emb_batch = self._half_tensor(emb_batch)
+                            pred = self.model.predict((
+                                emb_batch.to(utils.get_device()), cand_emb))
+                            if self.use_fp16:
+                                pred = pred.float()
+                            score += torch.sum(pred).item()
+                            n_embs += len(emb_batch)
+            
+                        if n_embs > 0 and score/n_embs > 0.5:  
+                            neigh.append(next_node)
+                            visited.add(next_node)
+                            frontier.update(n for n in graph.neighbors(next_node) 
+                                if n not in visited)
+                    except StopIteration:
+                        pass
                 if len(neigh) >= self.min_pattern_size:
                     pattern = graph.subgraph(neigh).copy()
                     pattern_hash = utils.wl_hash(pattern,
