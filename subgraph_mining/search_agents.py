@@ -576,9 +576,13 @@ class MemoryEfficientMCTSAgent(MCTSSearchAgent):
         """Process embeddings in batches with FP16 support"""
         for i in range(0, len(cand_neighs), batch_size):
             batch = cand_neighs[i:i+batch_size]
+            anchors = None
+            if self.node_anchored:
+                anchors = [list(g.nodes)[0] for g in batch]
+            
             with torch.no_grad():
                 embs = self.model.emb_model(utils.batch_nx_graphs(
-                    batch, anchors=self.node_anchored))
+                    batch, anchors=anchors))
                 if self.use_fp16:
                     embs = self._half_tensor(embs)
                 for emb in embs:
@@ -622,6 +626,9 @@ class MemoryEfficientMCTSAgent(MCTSSearchAgent):
                     break
                     
                 cand_neigh = graph.subgraph(neigh + [next_node])
+                if self.node_anchored:
+                    for v in cand_neigh.nodes:
+                        cand_neigh.nodes[v]["anchor"] = 1 if v == neigh[0] else 0       
                 cand_emb = next(self._batch_embeddings([cand_neigh]))
                 
                 score = 0
