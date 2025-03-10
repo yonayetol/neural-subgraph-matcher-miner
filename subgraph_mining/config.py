@@ -9,6 +9,8 @@ def parse_decoder(parser):
     dec_parser = parser.add_argument_group()
     
     # Sampling parameters
+    dec_parser.add_argument('--chunk_size', type=int, default=10000,
+                        help='Chunk size for processing large graphs')
     dec_parser.add_argument('--sample_method', type=str,
         help='"tree" or "radial" sampling method')
     dec_parser.add_argument('--radius', type=int,

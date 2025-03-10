@@ -61,6 +61,7 @@ jobs:
                 --dataset=graph.pkl \
                 --n_trials 1000 \
                 --node_anchored \
+                --search_strategy mcts \
                 --memory_efficient \
                 --batch_size 32 \
                 --memory_limit 500000 \
