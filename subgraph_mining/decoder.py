@@ -27,7 +27,7 @@ from common import utils
 from common import combined_syn
 from subgraph_mining.config import parse_decoder
 from subgraph_matching.config import parse_encoder
-from subgraph_mining.search_agents import GreedySearchAgent, MCTSSearchAgent, MemoryEfficientGreedyAgent, MemoryEfficientMCTSAgent, BeamSearchAgent
+from subgraph_mining.search_agents import GreedySearchAgent, MCTSSearchAgent
 
 import matplotlib.pyplot as plt
 
@@ -207,29 +207,14 @@ def pattern_growth(dataset, task, args):
 
     if args.search_strategy == "mcts":
         assert args.method_type == "order"
-        if args.memory_efficient:
-            agent = MemoryEfficientMCTSAgent(args.min_pattern_size, args.max_pattern_size,
-                model, graphs, embs, node_anchored=args.node_anchored,
-                analyze=args.analyze, out_batch_size=args.out_batch_size)
-        else:
-            agent = MCTSSearchAgent(args.min_pattern_size, args.max_pattern_size,
-                model, graphs, embs, node_anchored=args.node_anchored,
-                analyze=args.analyze, out_batch_size=args.out_batch_size)
-    elif args.search_strategy == "greedy":
-        if args.memory_efficient:
-            agent = MemoryEfficientGreedyAgent(args.min_pattern_size, args.max_pattern_size,
-                model, graphs, embs, node_anchored=args.node_anchored,
-                analyze=args.analyze, model_type=args.method_type,
-                out_batch_size=args.out_batch_size)
-        else:
-            agent = GreedySearchAgent(args.min_pattern_size, args.max_pattern_size,
-                model, graphs, embs, node_anchored=args.node_anchored,
-                analyze=args.analyze, model_type=args.method_type,
-                out_batch_size=args.out_batch_size)
-    elif args.search_strategy == "beam":
-        agent = BeamSearchAgent(args.min_pattern_size, args.max_pattern_size,
+        agent = MCTSSearchAgent(args.min_pattern_size, args.max_pattern_size,
             model, graphs, embs, node_anchored=args.node_anchored,
             analyze=args.analyze, out_batch_size=args.out_batch_size)
+    elif args.search_strategy == "greedy":
+        agent = GreedySearchAgent(args.min_pattern_size, args.max_pattern_size,
+            model, graphs, embs, node_anchored=args.node_anchored,
+            analyze=args.analyze, model_type=args.method_type,
+            out_batch_size=args.out_batch_size)
     out_graphs = agent.run_search(args.n_trials)
     
     print(time.time() - start_time, "TOTAL TIME")
@@ -348,11 +333,6 @@ def main():
         dataset = [graph]
         task = 'graph'
         print(f"Loaded Neo4j graph with {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges")
-        if graph.number_of_nodes() > 100000:
-            pattern_growth_streaming(dataset, task, args)
-        else:
-            pattern_growth(dataset, task, args)
-
     elif args.dataset == 'enzymes':
         dataset = TUDataset(root='/tmp/ENZYMES', name='ENZYMES')
         task = 'graph'
