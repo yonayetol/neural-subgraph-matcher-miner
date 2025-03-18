@@ -27,7 +27,7 @@ from common import utils
 from common import combined_syn
 from subgraph_mining.config import parse_decoder
 from subgraph_matching.config import parse_encoder
-from subgraph_mining.search_agents import GreedySearchAgent, MCTSSearchAgent
+from subgraph_mining.search_agents import GreedySearchAgent, MCTSSearchAgent, MemoryEfficientMCTSAgent, MemoryEfficientGreedyAgent, BeamSearchAgent
 
 import matplotlib.pyplot as plt
 
@@ -207,14 +207,31 @@ def pattern_growth(dataset, task, args):
 
     if args.search_strategy == "mcts":
         assert args.method_type == "order"
-        agent = MCTSSearchAgent(args.min_pattern_size, args.max_pattern_size,
-            model, graphs, embs, node_anchored=args.node_anchored,
-            analyze=args.analyze, out_batch_size=args.out_batch_size)
+        if args.memory_efficient:
+            agent = MemoryEfficientMCTSAgent(args.min_pattern_size, args.max_pattern_size,
+                model, graphs, embs, node_anchored=args.node_anchored,
+                analyze=args.analyze, out_batch_size=args.out_batch_size,
+                memory_limit=args.memory_limit)
+        else:
+            agent = MCTSSearchAgent(args.min_pattern_size, args.max_pattern_size,
+                model, graphs, embs, node_anchored=args.node_anchored,
+                analyze=args.analyze, out_batch_size=args.out_batch_size)
     elif args.search_strategy == "greedy":
-        agent = GreedySearchAgent(args.min_pattern_size, args.max_pattern_size,
+        if args.memory_efficient:
+            agent = MemoryEfficientGreedyAgent(args.min_pattern_size, args.max_pattern_size,
+                model, graphs, embs, node_anchored=args.node_anchored,
+                analyze=args.analyze, model_type=args.method_type,
+                out_batch_size=args.out_batch_size, memory_limit=args.memory_limit)
+        else:
+            agent = GreedySearchAgent(args.min_pattern_size, args.max_pattern_size,
+                model, graphs, embs, node_anchored=args.node_anchored,
+                analyze=args.analyze, model_type=args.method_type,
+                out_batch_size=args.out_batch_size)
+    elif args.search_strategy == "beam":
+        agent = BeamSearchAgent(args.min_pattern_size, args.max_pattern_size,
             model, graphs, embs, node_anchored=args.node_anchored,
             analyze=args.analyze, model_type=args.method_type,
-            out_batch_size=args.out_batch_size)
+            out_batch_size=args.out_batch_size, beam_width=args.beam_width)
     out_graphs = agent.run_search(args.n_trials)
     
     print(time.time() - start_time, "TOTAL TIME")

@@ -1,11 +1,6 @@
 import argparse
 
 def parse_decoder(parser):
-    """Add decoder-specific arguments to the parser.
-    
-    Args:
-        parser: ArgumentParser object to add arguments to
-    """
     dec_parser = parser.add_argument_group()
     
     # Sampling parameters
@@ -45,7 +40,9 @@ def parse_decoder(parser):
         help='Use memory efficient search for large graphs')
     dec_parser.add_argument('--memory_limit', type=int,
         help='Memory limit in number of patterns')
-    
+    # Beam search parameter
+    parser.add_argument('--beam_width', type=int, default=5,
+                        help='Width of beam for beam search')
     # Output and analysis
     dec_parser.add_argument('--out_path', type=str,
         help='path to output candidate motifs')
