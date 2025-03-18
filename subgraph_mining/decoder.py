@@ -210,8 +210,7 @@ def pattern_growth(dataset, task, args):
         if args.memory_efficient:
             agent = MemoryEfficientMCTSAgent(args.min_pattern_size, args.max_pattern_size,
                 model, graphs, embs, node_anchored=args.node_anchored,
-                analyze=args.analyze, out_batch_size=args.out_batch_size,
-                memory_limit=args.memory_limit)
+                analyze=args.analyze, out_batch_size=args.out_batch_size)
         else:
             agent = MCTSSearchAgent(args.min_pattern_size, args.max_pattern_size,
                 model, graphs, embs, node_anchored=args.node_anchored,
@@ -221,7 +220,7 @@ def pattern_growth(dataset, task, args):
             agent = MemoryEfficientGreedyAgent(args.min_pattern_size, args.max_pattern_size,
                 model, graphs, embs, node_anchored=args.node_anchored,
                 analyze=args.analyze, model_type=args.method_type,
-                out_batch_size=args.out_batch_size, memory_limit=args.memory_limit)
+                out_batch_size=args.out_batch_size)
         else:
             agent = GreedySearchAgent(args.min_pattern_size, args.max_pattern_size,
                 model, graphs, embs, node_anchored=args.node_anchored,

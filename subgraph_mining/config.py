@@ -38,7 +38,6 @@ def parse_decoder(parser):
     # Memory efficiency parameters
     dec_parser.add_argument('--memory_efficient', action='store_true',
         help='Use memory efficient search for large graphs')
-
     # Beam search parameter
     parser.add_argument('--beam_width', type=int, default=5,
                         help='Width of beam for beam search')
