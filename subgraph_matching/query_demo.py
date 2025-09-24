@@ -2,7 +2,7 @@
 Subgraph Querying Demo with Web Server
 
 This module provides subgraph querying functionality with automatic web serving
-of interactive visualizations on port 3000.
+of interactive visualizations on port 10000.
 """
 
 import networkx as nx
@@ -136,7 +136,7 @@ class SubgraphQueryDemo:
 
     def create_combined_visualization(self, target_data, query_data, result=None):
         """
-        Create a combined HTML file with both graphs side by side.
+        Create a combined HTML file with a single centered graph showing both datasets.
 
         Args:
             target_data: Target graph data
@@ -152,585 +152,95 @@ class SubgraphQueryDemo:
         with open(template_path, 'r', encoding='utf-8') as f:
             template_content = f.read()
 
-        # Convert data to JSON
+        # Create combined graph data by merging both graphs
+        combined_nodes = []
+        combined_edges = []
+
+        # Add target nodes with offset
+        target_offset_x = -200
+        target_offset_y = -100
+        for node in target_data['nodes']:
+            combined_node = node.copy()
+            combined_node['x'] += target_offset_x
+            combined_node['y'] += target_offset_y
+            combined_node['label'] = f"Target: {node.get('label', 'node')}"
+            combined_nodes.append(combined_node)
+
+        # Add query nodes with offset
+        query_offset_x = 200
+        query_offset_y = 100
+        for node in query_data['nodes']:
+            combined_node = node.copy()
+            combined_node['x'] += query_offset_x
+            combined_node['y'] += query_offset_y
+            combined_node['label'] = f"Query: {node.get('label', 'node')}"
+            combined_nodes.append(combined_node)
+
+        # Add edges from both graphs
+        for edge in target_data['edges']:
+            combined_edges.append(edge.copy())
+        for edge in query_data['edges']:
+            combined_edges.append(edge.copy())
+
+        # Create combined metadata
+        combined_metadata = {
+            'title': f"Combined Graph - Target vs Query ({'Match' if result else 'No Match'})",
+            'nodeCount': len(combined_nodes),
+            'edgeCount': len(combined_edges),
+            'isDirected': target_data['metadata'].get('isDirected', False),
+            'density': len(combined_edges) / (len(combined_nodes) * (len(combined_nodes) - 1) / 2) if len(combined_nodes) > 1 else 0
+        }
+
+        # Create combined legend
+        combined_legend = {
+            'nodeTypes': [
+                {'label': 'Target: gene', 'color': 'rgba(59, 130, 246, 0.7)'},
+                {'label': 'Target: transcript', 'color': 'rgba(34, 197, 94, 0.7)'},
+                {'label': 'Target: protein', 'color': 'rgba(245, 101, 101, 0.7)'},
+                {'label': 'Query: gene', 'color': 'rgba(139, 69, 19, 0.7)'},
+                {'label': 'Query: transcript', 'color': 'rgba(75, 0, 130, 0.7)'},
+                {'label': 'Query: protein', 'color': 'rgba(255, 20, 147, 0.7)'}
+            ],
+            'edgeTypes': [
+                {'label': 'Target: transcribed_to', 'color': 'rgba(34, 100, 94, 0.7)'},
+                {'label': 'Target: translates_to', 'color': 'rgba(245, 190, 101, 0.7)'},
+                {'label': 'Query: transcribed_to', 'color': 'rgba(0, 100, 0, 0.7)'},
+                {'label': 'Query: translates_to', 'color': 'rgba(255, 69, 0, 0.7)'}
+            ]
+        }
+
+        combined_data = {
+            'metadata': combined_metadata,
+            'nodes': combined_nodes,
+            'edges': combined_edges,
+            'legend': combined_legend
+        }
+
+        # Convert to JSON
         import json
-        target_data_json = json.dumps(target_data, indent=2)
-        query_data_json = json.dumps(query_data, indent=2)
-
-        # Create combined HTML with two canvases side by side
-        combined_html = f"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
-    <title>Combined Graph Visualizations</title>
-    <style>
-        :root {{
-            /* Color Palette - Light Theme */
-            --bg-primary: #fafafa;
-            --bg-secondary: rgba(255, 255, 255, 0.9);
-            --border-light: rgba(0, 0, 0, 0.1);
-            --text-primary: #374151;
-            --text-secondary: #6b7280;
-
-            /* Node Colors */
-            --node-default: rgba(59, 130, 246, 0.7);
-            --node-anchor: rgba(239, 68, 68, 0.8);
-            --node-border: rgba(0, 0, 0, 0.3);
-
-            /* Edge Colors */
-            --edge-default: rgba(107, 114, 128, 0.6);
-            --edge-hover: rgba(59, 130, 246, 0.8);
-
-            /* UI Elements */
-            --card-bg: rgba(255, 255, 255, 0.95);
-            --card-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            --card-border: rgba(0, 0, 0, 0.1);
-
-            /* Grid Colors */
-            --grid-minor: rgba(0, 0, 0, 0.03);
-            --grid-major: rgba(0, 0, 0, 0.08);
-            --grid-axis: rgba(59, 130, 246, 0.15);
-            --grid-dots: rgba(0, 0, 0, 0.1);
-            --grid-center: rgba(59, 130, 246, 0.2);
-        }}
-
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background-color: var(--bg-primary);
-            overflow: hidden;
-            height: 100vh;
-            width: 100vw;
-            display: flex;
-            flex-direction: column;
-        }}
-
-        .header {{
-            text-align: center;
-            padding: 20px;
-            background: var(--card-bg);
-            border-bottom: 1px solid var(--border-light);
-            z-index: 1000;
-        }}
-
-        .header h1 {{
-            font-size: 24px;
-            color: var(--text-primary);
-            margin-bottom: 8px;
-        }}
-
-        .header p {{
-            font-size: 16px;
-            color: var(--text-secondary);
-        }}
-
-        .graphs-container {{
-            flex: 1;
-            display: flex;
-            overflow: hidden;
-        }}
-
-        .graph-section {{
-            flex: 1;
-            position: relative;
-            border-right: 1px solid var(--border-light);
-        }}
-
-        .graph-section:last-child {{
-            border-right: none;
-        }}
-
-        .canvas-container {{
-            position: relative;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-        }}
-
-        .graph-canvas {{
-            position: absolute;
-            top: 0;
-            left: 0;
-            cursor: grab;
-            background-color: var(--bg-primary);
-            background-image:
-                radial-gradient(circle at 1px 1px, rgba(0,0,0,0.02) 1px, transparent 0);
-            background-size: 20px 20px;
-        }}
-
-        .graph-canvas:active {{
-            cursor: grabbing;
-        }}
-
-        /* UI card styling */
-        .ui-card {{
-            position: absolute;
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            box-shadow: var(--card-shadow);
-            backdrop-filter: blur(10px);
-            z-index: 1000;
-            padding: 12px;
-            color: var(--text-primary);
-            font-size: 14px;
-        }}
-
-        /* Position adjustments for side-by-side layout */
-        .top-left {{
-            top: 20px;
-            left: 20px;
-        }}
-
-        .top-center {{
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-        }}
-
-        .top-right {{
-            top: 20px;
-            right: 20px;
-        }}
-
-        .bottom-right-upper {{
-            bottom: 180px;
-            right: 20px;
-        }}
-
-        .bottom-right-lower {{
-            bottom: 20px;
-            right: 20px;
-        }}
-
-        /* Title bar styling */
-        #title-bar {{
-            text-align: center;
-            font-weight: 600;
-            font-size: 16px;
-            min-width: 300px;
-        }}
-
-        #title-bar .subtitle {{
-            font-size: 12px;
-            color: var(--text-secondary);
-            margin-top: 4px;
-        }}
-
-        /* Zoom controls styling */
-        #zoom-controls {{
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            align-items: center;
-        }}
-
-        #zoom-controls button {{
-            width: 36px;
-            height: 36px;
-            border: 1px solid var(--border-light);
-            border-radius: 6px;
-            background: white;
-            color: var(--text-primary);
-            cursor: pointer;
-            font-size: 18px;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-        }}
-
-        #zoom-controls button:hover {{
-            background: var(--bg-primary);
-            border-color: var(--text-secondary);
-        }}
-
-        #zoom-controls button:active {{
-            transform: scale(0.95);
-        }}
-
-        /* Legend card styling */
-        #legend-card {{
-            min-width: 220px;
-            max-width: 280px;
-            max-height: 400px;
-            overflow-y: auto;
-        }}
-
-        #legend-card h3 {{
-            margin-bottom: 16px;
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-primary);
-            border-bottom: 1px solid var(--border-light);
-            padding-bottom: 8px;
-        }}
-
-        .legend-section {{
-            margin-bottom: 16px;
-        }}
-
-        .legend-section:last-child {{
-            margin-bottom: 0;
-        }}
-
-        .legend-section h4 {{
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }}
-
-        .legend-item {{
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 6px;
-            font-size: 12px;
-            padding: 2px 0;
-        }}
-
-        .legend-item:last-child {{
-            margin-bottom: 0;
-        }}
-
-        .legend-color {{
-            width: 18px;
-            height: 18px;
-            border-radius: 4px;
-            border: 1px solid var(--border-light);
-            flex-shrink: 0;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-        }}
-
-        .legend-shape {{
-            width: 18px;
-            height: 18px;
-            border: 1px solid var(--border-light);
-            flex-shrink: 0;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-        }}
-
-        .legend-item span {{
-            color: var(--text-primary);
-            font-weight: 500;
-            line-height: 1.2;
-        }}
-
-        /* Controls card styling */
-        #controls-card {{
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            min-width: 200px;
-        }}
-
-        .control-group {{
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }}
-
-        .control-group label {{
-            font-size: 12px;
-            font-weight: 500;
-            color: var(--text-secondary);
-        }}
-
-        .toggle-switch {{
-            position: relative;
-            display: inline-block;
-            width: 44px;
-            height: 24px;
-        }}
-
-        .toggle-switch input {{
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }}
-
-        .toggle-slider {{
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: 0.3s;
-            border-radius: 24px;
-        }}
-
-        input:checked + .toggle-slider {{
-            background-color: var(--node-default);
-        }}
-
-        input:checked + .toggle-slider:before {{
-            transform: translateX(20px);
-        }}
-
-        .toggle-slider:before {{
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: 0.3s;
-            border-radius: 50%;
-        }}
-
-        .export-buttons {{
-            display: flex;
-            gap: 8px;
-        }}
-
-        .export-buttons button {{
-            flex: 1;
-            padding: 8px 12px;
-            border: 1px solid var(--border-light);
-            border-radius: 4px;
-            background: white;
-            color: var(--text-primary);
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s ease;
-        }}
-
-        .export-buttons button:hover {{
-            background: var(--bg-primary);
-            border-color: var(--text-secondary);
-        }}
-
-        /* Context menu styling */
-        #context-menu {{
-            position: absolute;
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 6px;
-            box-shadow: var(--card-shadow);
-            backdrop-filter: blur(10px);
-            z-index: 2000;
-            padding: 4px 0;
-            min-width: 120px;
-        }}
-
-        #context-menu.hidden {{
-            display: none;
-        }}
-
-        .context-menu-item {{
-            padding: 8px 16px;
-            cursor: pointer;
-            font-size: 14px;
-            color: var(--text-primary);
-            transition: background-color 0.2s ease;
-        }}
-
-        .context-menu-item:hover {{
-            background-color: var(--bg-primary);
-        }}
-
-        /* Isolation effects */
-        .node-isolated {{
-            filter: blur(2px);
-            opacity: 0.3;
-        }}
-
-        .edge-isolated {{
-            filter: blur(2px);
-            opacity: 0.2;
-        }}
-
-        /* Responsive design */
-        @media (max-width: 768px) {{
-            .graphs-container {{
-                flex-direction: column;
-            }}
-            .graph-section {{
-                border-right: none;
-                border-bottom: 1px solid var(--border-light);
-            }}
-            .graph-section:last-child {{
-                border-bottom: none;
-            }}
-            .ui-card {{
-                padding: 8px;
-                font-size: 12px;
-            }}
-            .top-left, .top-right {{
-                top: 10px;
-            }}
-            .top-left {{
-                left: 10px;
-            }}
-            .top-right {{
-                right: 10px;
-            }}
-            .bottom-right-upper {{
-                bottom: 140px;
-                right: 10px;
-            }}
-            .bottom-right-lower {{
-                bottom: 10px;
-                right: 10px;
-            }}
-            #title-bar {{
-                min-width: 200px;
-                font-size: 14px;
-            }}
-            #zoom-controls button {{
-                width: 32px;
-                height: 32px;
-                font-size: 16px;
-            }}
-            #legend-card, #controls-card {{
-                min-width: 160px;
-            }}
-        }}
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>Neural Subgraph Matcher - Query Demo</h1>
-        <p>Target Graph vs Query Graph Comparison</p>
-    </div>
-
-    <div class="graphs-container">
-        <!-- Target Graph Section -->
-        <div class="graph-section">
-            <div id="title-bar-target" class="ui-card top-center">
-                <div id="graph-title-target">{target_data['metadata']['title']}</div>
-                <div class="subtitle" id="graph-stats-target">Loading...</div>
-            </div>
-
-            <div id="zoom-controls-target" class="ui-card top-right">
-                <button id="zoom-in-target" title="Zoom In">+</button>
-                <button id="zoom-out-target" title="Zoom Out">−</button>
-                <button id="recenter-target" title="Recenter">⌂</button>
-            </div>
-
-            <div id="legend-card-target" class="ui-card bottom-right-upper">
-                <h3>Legend</h3>
-                <div id="legend-content-target">
-                    <!-- Legend items will be populated by JavaScript -->
-                </div>
-            </div>
-
-            <div id="controls-card-target" class="ui-card bottom-right-lower">
-                <div class="control-group">
-                    <label>Show Labels</label>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="label-toggle-target" checked>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-
-                <div class="control-group">
-                    <label>Export</label>
-                    <div class="export-buttons">
-                        <button id="export-pdf-target">PDF</button>
-                        <button id="export-png-target">PNG</button>
-                    </div>
-                </div>
-            </div>
-
-            <div id="context-menu-target" class="hidden">
-                <div class="context-menu-item" id="isolate-node-target">Isolate</div>
-                <div class="context-menu-item" id="copy-label-target">Copy Label</div>
-                <div class="context-menu-item" id="cancel-isolate-target" style="display: none;">Cancel Isolate</div>
-            </div>
-
-            <div class="canvas-container">
-                <canvas id="graph-canvas-target"></canvas>
-            </div>
-        </div>
-
-        <!-- Query Graph Section -->
-        <div class="graph-section">
-            <div id="title-bar-query" class="ui-card top-center">
-                <div id="graph-title-query">{query_data['metadata']['title']}</div>
-                <div class="subtitle" id="graph-stats-query">Loading...</div>
-            </div>
-
-            <div id="zoom-controls-query" class="ui-card top-right">
-                <button id="zoom-in-query" title="Zoom In">+</button>
-                <button id="zoom-out-query" title="Zoom Out">−</button>
-                <button id="recenter-query" title="Recenter">⌂</button>
-            </div>
-
-            <div id="legend-card-query" class="ui-card bottom-right-upper">
-                <h3>Legend</h3>
-                <div id="legend-content-query">
-                    <!-- Legend items will be populated by JavaScript -->
-                </div>
-            </div>
-
-            <div id="controls-card-query" class="ui-card bottom-right-lower">
-                <div class="control-group">
-                    <label>Show Labels</label>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="label-toggle-query" checked>
-                        <span class="toggle-slider"></span>
-                    </label>
-                </div>
-
-                <div class="control-group">
-                    <label>Export</label>
-                    <div class="export-buttons">
-                        <button id="export-pdf-query">PDF</button>
-                        <button id="export-png-query">PNG</button>
-                    </div>
-                </div>
-            </div>
-
-            <div id="context-menu-query" class="hidden">
-                <div class="context-menu-item" id="isolate-node-query">Isolate</div>
-                <div class="context-menu-item" id="copy-label-query">Copy Label</div>
-                <div class="context-menu-item" id="cancel-isolate-query" style="display: none;">Cancel Isolate</div>
-            </div>
-
-            <div class="canvas-container">
-                <canvas id="graph-canvas-query"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        // Target graph data
-        const TARGET_GRAPH_DATA = {target_data_json};
-
-        // Query graph data
-        const QUERY_GRAPH_DATA = {query_data_json};
-
-        // Include the full JavaScript from the template
-        {template_content.split('<script>')[1].split('</script>')[0]}
-    </script>
-</body>
-</html>
-"""
-
-        # Convert data to JSON
-        import json
-        target_data_json = json.dumps(target_data, indent=2)
-        query_data_json = json.dumps(query_data, indent=2)
-
-        combined_html = combined_html.replace('{target_data_json}', target_data_json)
-        combined_html = combined_html.replace('{query_data_json}', query_data_json)
+        combined_data_json = json.dumps(combined_data, indent=2)
+
+        # Extract the script content and replace GRAPH_DATA
+        script_start = template_content.find('<script>')
+        script_end = template_content.find('</script>', script_start) + len('</script>')
+        script_content = template_content[script_start:script_end]
+
+        # Replace the GRAPH_DATA definition
+        old_graph_data_start = script_content.find('const GRAPH_DATA = {')
+        old_graph_data_end = script_content.find('};', old_graph_data_start) + 2
+        old_graph_data = script_content[old_graph_data_start:old_graph_data_end]
+
+        new_graph_data = f'const GRAPH_DATA = {combined_data_json};'
+        new_script_content = script_content.replace(old_graph_data, new_graph_data)
+
+        # Replace the script in the template
+        combined_html = template_content.replace(script_content, new_script_content)
+
+        # Update the title
+        combined_html = combined_html.replace(
+            '<title>Interactive Graph Visualizer</title>',
+            '<title>Combined Graph Visualization - Target vs Query</title>'
+        )
 
         # Write combined HTML file
         combined_html_path = os.path.join(self.output_dir, "combined_graphs.html")
@@ -793,21 +303,41 @@ def main():
 
         print(f"Combined visualization saved to: {combined_html}")
 
-        # Open in Chrome browser directly
-        import subprocess
-        import platform
+        # Start web server on port 10000
+        print("\nStarting web server on port 10000...")
+        print(f"Access the visualization at: http://localhost:10000/combined_graphs.html")
+
+        # Change to output directory to serve files
+        original_cwd = os.getcwd()
+        os.chdir(demo.output_dir)
 
         try:
-            if platform.system() == 'Windows':
-                subprocess.run(['start', 'chrome', combined_html], shell=True)
-            elif platform.system() == 'Darwin':  # macOS
-                subprocess.run(['open', '-a', 'Google Chrome', combined_html])
-            else:  # Linux
-                subprocess.run(['google-chrome', combined_html])
-            print("Opened combined visualization in Chrome browser")
+            # Kill any existing process on port 10000
+            demo._kill_process_on_port(10000)
+
+            # Start HTTP server
+            server = HTTPServer(('localhost', 10000), SimpleHTTPRequestHandler)
+            print("Server started. Press Ctrl+C to stop.")
+
+            # Run server in a separate thread to allow graceful shutdown
+            server_thread = threading.Thread(target=server.serve_forever)
+            server_thread.daemon = True
+            server_thread.start()
+
+            # Keep the main thread alive
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                print("\nShutting down server...")
+                server.shutdown()
+                server.server_close()
+
         except Exception as e:
-            print(f"Could not open in Chrome automatically: {e}")
-            print(f"Please open {combined_html} manually in your browser")
+            print(f"Failed to start server: {e}")
+        finally:
+            # Restore original working directory
+            os.chdir(original_cwd)
     else:
         print("\nDemo completed with errors. Check the error messages above.")
 
