@@ -19,7 +19,8 @@ import torch_geometric.utils as pyg_utils
 
 import torch_geometric.nn as pyg_nn
 from matplotlib import cm
-
+import os, sys
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from common import data
 from common import models
 from common import utils
@@ -162,17 +163,21 @@ def count_graphlets_helper(inp):
     target.remove_edges_from(nx.selfloop_edges(target))
 
     count = 0
+    # Determine if we can use signal-based alarms (not available on Windows)
+    use_alarm = False
     try:
-        # Use signal-based timeout to ensure we don't get stuck
-        # This will only work on Unix-based systems
-        import signal
-        
-        def timeout_handler(signum, frame):
-            raise TimeoutError(f"Task {i} timed out after {effective_timeout} seconds")
-            
-        # Set the signal handler and a alarm
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(effective_timeout)
+        import signal  # type: ignore
+        if hasattr(signal, "SIGALRM"):
+            use_alarm = True
+    except Exception:
+        signal = None  # type: ignore
+
+    try:
+        if use_alarm:
+            def timeout_handler(signum, frame):  # pragma: no cover (platform dependent)
+                raise TimeoutError(f"Task {i} timed out after {effective_timeout} seconds")
+            signal.signal(signal.SIGALRM, timeout_handler)  # type: ignore
+            signal.alarm(effective_timeout)  # type: ignore
         
         # Pre-compute query stats for method "freq"
         if method == "freq":
@@ -233,12 +238,64 @@ def count_graphlets_helper(inp):
             if method == "freq" and n_symmetries > 0:
                 count = count / n_symmetries
         
-        # Cancel the alarm
-        signal.alarm(0)
+        # Cancel the alarm if it was set
+        if use_alarm:
+            try:
+                signal.alarm(0)  # type: ignore
+            except Exception:
+                pass
             
     except TimeoutError as e:
         print(f"Task {i} timed out: {str(e)}")
         count = 0
+    except AttributeError as e:
+        # Likely due to missing SIGALRM on this platform; fall back silently
+        if 'SIGALRM' in str(e):
+            # Re-run the core logic without alarm to at least attempt counting
+            try:
+                if method == "freq":
+                    ismags = nx.isomorphism.ISMAGS(query, query)
+                    n_symmetries = len(list(ismags.isomorphisms_iter(symmetry=False)))
+                if method == "bin":
+                    if node_anchored:
+                        nx.set_node_attributes(target, 0, name="anchor")
+                        target.nodes[anchor_or_none]["anchor"] = 1
+                        if preserve_labels:
+                            matcher = iso.GraphMatcher(target, query,
+                                node_match=lambda n1, n2: (n1.get("anchor") == n2.get("anchor") and
+                                                          n1.get("label") == n2.get("label")),
+                                edge_match=lambda e1, e2: e1.get("type") == e2.get("type"))
+                        else:
+                            matcher = iso.GraphMatcher(target, query,
+                                node_match=iso.categorical_node_match(["anchor"], [0]))
+                        count = int(matcher.subgraph_is_isomorphic())
+                    else:
+                        if preserve_labels:
+                            matcher = iso.GraphMatcher(target, query,
+                                node_match=lambda n1, n2: n1.get("label") == n2.get("label"),
+                                edge_match=lambda e1, e2: e1.get("type") == e2.get("type"))
+                        else:
+                            matcher = iso.GraphMatcher(target, query)
+                        count = int(matcher.subgraph_is_isomorphic())
+                elif method == "freq":
+                    if preserve_labels:
+                        matcher = iso.GraphMatcher(target, query,
+                            node_match=lambda n1, n2: n1.get("label") == n2.get("label"),
+                            edge_match=lambda e1, e2: e1.get("type") == e2.get("type"))
+                    else:
+                        matcher = iso.GraphMatcher(target, query)
+                    for _ in matcher.subgraph_isomorphisms_iter():
+                        count += 1
+                        if count >= MAX_MATCHES_PER_QUERY:
+                            break
+                    if method == "freq" and 'n_symmetries' in locals() and n_symmetries > 0:
+                        count = count / n_symmetries
+            except Exception as inner_e:
+                print(f"Error (no-alarm fallback) processing query {i}: {inner_e}")
+                count = 0
+        else:
+            print(f"Error processing query {i}: {str(e)}")
+            count = 0
     except Exception as e:
         print(f"Error processing query {i}: {str(e)}")
         count = 0

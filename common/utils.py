@@ -53,25 +53,44 @@ def vec_hash(v):
         random.seed(2019)
         cached_masks = [random.getrandbits(32) for i in range(len(v))]
     #v = [hash(tuple(v)) ^ mask for mask in cached_masks]
-    v = [hash(v[i]) ^ mask for i, mask in enumerate(cached_masks)]
+    # Original code could generate arbitrarily large Python ints which then overflow
+    # when assigned into NumPy int arrays (especially on Windows where default is 32-bit).
+    # We bound the hash into a signed 32-bit range and return Python ints.
+    v = [ (hash(v[i]) ^ mask) & 0x7FFFFFFF for i, mask in enumerate(cached_masks) ]
     #v = [np.sum(v) for mask in cached_masks]
     return v
 
-def wl_hash(g, dim=64, node_anchored=False):
+def wl_hash(g, dim=64, node_anchored=False, n_iter=3):
+    """Weisfeiler-Lehman style hash (very simplified / non-canonical).
+
+    Previous implementation iterated len(g) times and used unbounded Python ints,
+    causing OverflowError when assigning into NumPy arrays on some platforms.
+
+    Changes:
+      - Limit iterations to n_iter (default 3) for stability/performance.
+      - Use int64 arrays explicitly.
+      - Bound hash values to 31 bits in vec_hash to avoid overflow.
+    """
     g = nx.convert_node_labels_to_integers(g)
-    vecs = np.zeros((len(g), dim), dtype=int)
+    n = len(g)
+    if n == 0:
+        return tuple([0]*dim)
+    vecs = np.zeros((n, dim), dtype=np.int64)
     if node_anchored:
         for v in g.nodes:
-            if g.nodes[v]["anchor"] == 1:
+            if g.nodes[v].get("anchor", 0) == 1:
                 vecs[v] = 1
                 break
-    for i in range(len(g)):
-        newvecs = np.zeros((len(g), dim), dtype=int)
-        for n in g.nodes:
-            newvecs[n] = vec_hash(np.sum(vecs[list(g.neighbors(n)) + [n]],
-                axis=0))
+    # Cap iterations to number of nodes but usually small
+    iters = min(n_iter, n)
+    for _ in range(iters):
+        newvecs = np.zeros((n, dim), dtype=np.int64)
+        for node in g.nodes:
+            neigh_idx = list(g.neighbors(node)) + [node]
+            summed = np.sum(vecs[neigh_idx], axis=0)
+            newvecs[node] = vec_hash(summed)
         vecs = newvecs
-    return tuple(np.sum(vecs, axis=0))
+    return tuple(np.sum(vecs, axis=0).tolist())
 
 def gen_baseline_queries_rand_esu(queries, targets, node_anchored=False):
     sizes = Counter([len(g) for g in queries])
