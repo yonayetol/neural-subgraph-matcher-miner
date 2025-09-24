@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
-    <title>Combined Graph Visualization - Target vs Query</title>
+    <title>Interactive Graph Visualizer</title>
     <style>
         :root {
             /* Color Palette - Light Theme */
@@ -497,363 +497,93 @@
     <script>
         // Sample 7-node directed graph data
         const GRAPH_DATA = {
-  "metadata": {
-    "title": "Combined Graph - Target vs Query (No Match)",
-    "nodeCount": 21,
-    "edgeCount": 22,
-    "isDirected": false,
-    "density": 0.10476190476190476
-  },
-  "nodes": [
-    {
-      "id": "0",
-      "x": -190.12873250700915,
-      "y": 81.74203133972998,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "0"
-    },
-    {
-      "id": "1",
-      "x": -8.869095416776986,
-      "y": -82.97957875285539,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "1"
-    },
-    {
-      "id": "2",
-      "x": -341.25421919166314,
-      "y": -236.61576373956973,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "2"
-    },
-    {
-      "id": "3",
-      "x": -381.99792286601144,
-      "y": -21.470573010650824,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "3"
-    },
-    {
-      "id": "4",
-      "x": -51.16439586077851,
-      "y": 15.70321192610244,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "4"
-    },
-    {
-      "id": "5",
-      "x": -326.87614667815797,
-      "y": 65.61679116341898,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "5"
-    },
-    {
-      "id": "6",
-      "x": -3.2188543444916036,
-      "y": -151.81518844793203,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "6"
-    },
-    {
-      "id": "7",
-      "x": -251.0480451609528,
-      "y": -275.43901606153366,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "7"
-    },
-    {
-      "id": "8",
-      "x": -261.2835724915102,
-      "y": 57.99349525940468,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "8"
-    },
-    {
-      "id": "9",
-      "x": -115.53981218441788,
-      "y": -261.9248952961218,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "9"
-    },
-    {
-      "id": "10",
-      "x": -43.91472227489231,
-      "y": -219.0085189027418,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "10"
-    },
-    {
-      "id": "11",
-      "x": -364.17601662005495,
-      "y": -160.1356122885498,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "11"
-    },
-    {
-      "id": "12",
-      "x": -111.45712644302118,
-      "y": 64.68436043706748,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "12"
-    },
-    {
-      "id": "13",
-      "x": -378.5295067249582,
-      "y": -76.35074362576856,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "13"
-    },
-    {
-      "id": "14",
-      "x": -170.54183123530356,
-      "y": -300.0,
-      "anchor": false,
-      "label": "Target: default",
-      "display_label": "14"
-    },
-    {
-      "id": "0",
-      "x": 235.50771542698823,
-      "y": 284.03346299454944,
-      "anchor": false,
-      "label": "Query: default",
-      "display_label": "0"
-    },
-    {
-      "id": "1",
-      "x": 358.1526712558252,
-      "y": -21.03998911419491,
-      "anchor": false,
-      "label": "Query: default",
-      "display_label": "1"
-    },
-    {
-      "id": "2",
-      "x": 137.51080000015452,
-      "y": -100.0,
-      "anchor": false,
-      "label": "Query: default",
-      "display_label": "2"
-    },
-    {
-      "id": "3",
-      "x": 33.527926054050766,
-      "y": 39.3303602598399,
-      "anchor": false,
-      "label": "Query: default",
-      "display_label": "3"
-    },
-    {
-      "id": "4",
-      "x": 379.3448461088477,
-      "y": 162.70744377700603,
-      "anchor": false,
-      "label": "Query: default",
-      "display_label": "4"
-    },
-    {
-      "id": "5",
-      "x": 55.95604115413357,
-      "y": 234.9687220827996,
-      "anchor": false,
-      "label": "Query: default",
-      "display_label": "5"
-    }
-  ],
-  "edges": [
-    {
-      "source": "0",
-      "target": "2",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "0",
-      "target": "8",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "0",
-      "target": "10",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "0",
-      "target": "13",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "0",
-      "target": "14",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "1",
-      "target": "7",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "1",
-      "target": "11",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "1",
-      "target": "14",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "2",
-      "target": "3",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "3",
-      "target": "6",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "3",
-      "target": "9",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "3",
-      "target": "11",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "4",
-      "target": "11",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "4",
-      "target": "13",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "5",
-      "target": "13",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "8",
-      "target": "13",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "8",
-      "target": "14",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "9",
-      "target": "10",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "9",
-      "target": "14",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "11",
-      "target": "13",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "0",
-      "target": "2",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "2",
-      "target": "3",
-      "directed": false,
-      "label": "default"
-    }
-  ],
-  "legend": {
-    "nodeTypes": [
-      {
-        "label": "Target: gene",
-        "color": "rgba(59, 130, 246, 0.7)"
-      },
-      {
-        "label": "Target: transcript",
-        "color": "rgba(34, 197, 94, 0.7)"
-      },
-      {
-        "label": "Target: protein",
-        "color": "rgba(245, 101, 101, 0.7)"
-      },
-      {
-        "label": "Query: gene",
-        "color": "rgba(139, 69, 19, 0.7)"
-      },
-      {
-        "label": "Query: transcript",
-        "color": "rgba(75, 0, 130, 0.7)"
-      },
-      {
-        "label": "Query: protein",
-        "color": "rgba(255, 20, 147, 0.7)"
-      }
-    ],
-    "edgeTypes": [
-      {
-        "label": "Target: transcribed_to",
-        "color": "rgba(34, 100, 94, 0.7)"
-      },
-      {
-        "label": "Target: translates_to",
-        "color": "rgba(245, 190, 101, 0.7)"
-      },
-      {
-        "label": "Query: transcribed_to",
-        "color": "rgba(0, 100, 0, 0.7)"
-      },
-      {
-        "label": "Query: translates_to",
-        "color": "rgba(255, 69, 0, 0.7)"
-      }
-    ]
-  }
+        "metadata": {
+                "title": "Query Graph - Result Unknown",
+                "nodeCount": 6,
+                "edgeCount": 2,
+                "isDirected": false,
+                "density": 0.133
+        },
+        "nodes": [
+                {
+                        "id": "0",
+                        "x": 35.50771542698822,
+                        "y": 184.03346299454944,
+                        "anchor": false,
+                        "label": "default",
+                        "display_label": "0"
+                },
+                {
+                        "id": "1",
+                        "x": 158.15267125582523,
+                        "y": -121.03998911419491,
+                        "anchor": false,
+                        "label": "default",
+                        "display_label": "1"
+                },
+                {
+                        "id": "2",
+                        "x": -62.48919999984548,
+                        "y": -200.0,
+                        "anchor": false,
+                        "label": "default",
+                        "display_label": "2"
+                },
+                {
+                        "id": "3",
+                        "x": -166.47207394594923,
+                        "y": -60.6696397401601,
+                        "anchor": false,
+                        "label": "default",
+                        "display_label": "3"
+                },
+                {
+                        "id": "4",
+                        "x": 179.34484610884772,
+                        "y": 62.70744377700604,
+                        "anchor": false,
+                        "label": "default",
+                        "display_label": "4"
+                },
+                {
+                        "id": "5",
+                        "x": -144.04395884586643,
+                        "y": 134.9687220827996,
+                        "anchor": false,
+                        "label": "default",
+                        "display_label": "5"
+                }
+        ],
+        "edges": [
+                {
+                        "source": "0",
+                        "target": "2",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "2",
+                        "target": "3",
+                        "directed": false,
+                        "label": "default"
+                }
+        ],
+        "legend": {
+                "nodeTypes": [
+                        {
+                                "label": "default",
+                                "color": "rgba(59, 130, 246, 0.7)",
+                                "description": "Default nodes"
+                        }
+                ],
+                "edgeTypes": [
+                        {
+                                "label": "default",
+                                "color": "rgba(59, 130, 246, 0.6)",
+                                "description": "Default edges"
+                        }
+                ]
+        }
 };
 
         // Dynamic Style Management System
