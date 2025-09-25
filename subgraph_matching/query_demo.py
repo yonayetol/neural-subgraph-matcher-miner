@@ -14,8 +14,11 @@ import threading
 import time
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import socket
+import random
+import pickle 
+from find_best_threshold import find_best_threshold
+from query_subgraph import query_subgraph
 
-# Add parent directory to path for imports
 sys.path.insert(0, os.path.abspath(".."))
 
 # Import visualization modules
@@ -26,16 +29,6 @@ except ImportError:
     import visualizer.visualizer as viz
     extract_graph_data = viz.extract_graph_data
     process_html_template = viz.process_html_template
-
-# Query import will be done conditionally
-QUERY_AVAILABLE = False
-try:
-    from query_subgraph import query_subgraph
-    QUERY_AVAILABLE = True
-except ImportError:
-    print("Warning: Query functionality not available (dependencies not installed)")
-    query_subgraph = None
-
 
 class SubgraphQueryDemo:
     """
@@ -50,49 +43,31 @@ class SubgraphQueryDemo:
 
     def create_example_graphs(self):
         """Create example target and query graphs."""
-        # Target graph: larger connected graph
-        target = nx.gnp_random_graph(15, 0.2, seed=42)
 
-        # Query graph: actual subgraph of target
-        if len(target) >= 6:
-            nodes = list(target.nodes())[:6]
-            query = target.subgraph(nodes).copy()
-        else:
-            query = nx.gnp_random_graph(5, 0.3, seed=43)
+        # Check if saved graphs exist
+        graphs_dir = os.path.dirname(__file__)
+        g1_path = os.path.join(graphs_dir, 'G1.pkl') #main target graph
+        g2_path = os.path.join(graphs_dir, 'G2.pkl') #subgraph of G1
+        g3_path = os.path.join(graphs_dir, 'G3.pkl') #non-subgraph
 
-        return target, query
+        return pickle.load(open(g1_path, 'rb')), pickle.load(open(g2_path, 'rb'))
 
-    def run_query_and_visualize(self, target_graph=None, query_graph=None):
+    def run_query_and_visualize(self):
         """
         Run subgraph query and create visualizations.
 
-        Args:
-            target_graph: Target NetworkX graph (optional)
-            query_graph: Query NetworkX graph (optional)
-
-        Returns:
-            tuple: (result, target_html_path, query_html_path, target_data, query_data, target_graph, query_graph)
+        Returns: tuple: (result, target_html_path, query_html_path, target_data, query_data, target_graph, query_graph)
         """
-        if target_graph is None or query_graph is None:
-            target_graph, query_graph = self.create_example_graphs()
+        target_graph, query_graph = self.create_example_graphs()
 
         print(f"Target graph: {len(target_graph)} nodes, {target_graph.number_of_edges()} edges")
         print(f"Query graph: {len(query_graph)} nodes, {query_graph.number_of_edges()} edges")
 
         # Perform subgraph query
         print("\nPerforming subgraph query...")
-        if QUERY_AVAILABLE and query_subgraph:
-            try:
-                result = query_subgraph(target_graph, query_graph)
-                print(f"Query is {'a subgraph' if result else 'NOT a subgraph'} of target")
-            except Exception as e:
-                print(f"Query failed: {e}")
-                result = None  # Unknown result
-        else:
-            print("Query functionality not available (dependencies not installed)")
-            print("Proceeding with visualization only...")
-            result = None  # Unknown result
-
+        result = query_subgraph(target_graph, query_graph, threshold=2.6)
+        print(f"Query is {'a subgraph' if result else 'NOT a subgraph'} of target")
+       
         # Create visualizations
         print("\nGenerating visualizations...")
         try:

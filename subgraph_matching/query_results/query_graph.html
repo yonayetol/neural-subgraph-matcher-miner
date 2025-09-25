@@ -498,60 +498,60 @@
         // Sample 7-node directed graph data
         const GRAPH_DATA = {
         "metadata": {
-                "title": "Query Graph - Result Unknown",
+                "title": "Query Graph - Matches",
                 "nodeCount": 6,
-                "edgeCount": 2,
+                "edgeCount": 9,
                 "isDirected": false,
-                "density": 0.133
+                "density": 0.6
         },
         "nodes": [
                 {
                         "id": "0",
-                        "x": 35.50771542698822,
-                        "y": 184.03346299454944,
+                        "x": 32.6942861550963,
+                        "y": 200.0,
                         "anchor": false,
                         "label": "default",
                         "display_label": "0"
                 },
                 {
                         "id": "1",
-                        "x": 158.15267125582523,
-                        "y": -121.03998911419491,
+                        "x": 148.5552531917042,
+                        "y": -139.33483203971568,
                         "anchor": false,
                         "label": "default",
                         "display_label": "1"
                 },
                 {
                         "id": "2",
-                        "x": -62.48919999984548,
-                        "y": -200.0,
+                        "x": -0.22277406798018054,
+                        "y": -171.90929615605882,
                         "anchor": false,
                         "label": "default",
                         "display_label": "2"
                 },
                 {
                         "id": "3",
-                        "x": -166.47207394594923,
-                        "y": -60.6696397401601,
+                        "x": -152.15466968284946,
+                        "y": -88.14694764558098,
                         "anchor": false,
                         "label": "default",
                         "display_label": "3"
                 },
                 {
-                        "id": "4",
-                        "x": 179.34484610884772,
-                        "y": 62.70744377700604,
+                        "id": "6",
+                        "x": 120.20244121215072,
+                        "y": 46.58279347893229,
                         "anchor": false,
                         "label": "default",
-                        "display_label": "4"
+                        "display_label": "6"
                 },
                 {
-                        "id": "5",
-                        "x": -144.04395884586643,
-                        "y": 134.9687220827996,
+                        "id": "10",
+                        "x": -149.0745368081216,
+                        "y": 152.80828236242317,
                         "anchor": false,
                         "label": "default",
-                        "display_label": "5"
+                        "display_label": "10"
                 }
         ],
         "edges": [
@@ -562,8 +562,50 @@
                         "label": "default"
                 },
                 {
+                        "source": "0",
+                        "target": "10",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "1",
+                        "target": "2",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "1",
+                        "target": "3",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
                         "source": "2",
                         "target": "3",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "2",
+                        "target": "6",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "3",
+                        "target": "6",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "3",
+                        "target": "10",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "6",
+                        "target": "10",
                         "directed": false,
                         "label": "default"
                 }

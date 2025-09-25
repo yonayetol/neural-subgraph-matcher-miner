@@ -498,128 +498,128 @@
         // Sample 7-node directed graph data
         const GRAPH_DATA = {
         "metadata": {
-                "title": "Target Graph - Query Result Unknown (Dependencies Not Installed)",
+                "title": "Target Graph - Query IS a Subgraph",
                 "nodeCount": 15,
-                "edgeCount": 20,
+                "edgeCount": 32,
                 "isDirected": false,
-                "density": 0.19
+                "density": 0.305
         },
         "nodes": [
                 {
                         "id": "0",
-                        "x": 9.871267492990844,
-                        "y": 181.74203133972998,
+                        "x": 10.895777651160863,
+                        "y": 186.88971486534325,
                         "anchor": false,
                         "label": "default",
                         "display_label": "0"
                 },
                 {
                         "id": "1",
-                        "x": 191.130904583223,
-                        "y": 17.02042124714462,
+                        "x": 174.95386456672875,
+                        "y": 42.16305310815377,
                         "anchor": false,
                         "label": "default",
                         "display_label": "1"
                 },
                 {
                         "id": "2",
-                        "x": -141.25421919166314,
-                        "y": -136.61576373956973,
+                        "x": -92.77595092879099,
+                        "y": -90.83764703494886,
                         "anchor": false,
                         "label": "default",
                         "display_label": "2"
                 },
                 {
                         "id": "3",
-                        "x": -181.99792286601144,
-                        "y": 78.52942698934918,
+                        "x": -112.86053709515551,
+                        "y": 59.93244073144257,
                         "anchor": false,
                         "label": "default",
                         "display_label": "3"
                 },
                 {
                         "id": "4",
-                        "x": 148.8356041392215,
-                        "y": 115.70321192610244,
+                        "x": 85.45664970038794,
+                        "y": 65.52763419207123,
                         "anchor": false,
                         "label": "default",
                         "display_label": "4"
                 },
                 {
                         "id": "5",
-                        "x": -126.87614667815798,
-                        "y": 165.61679116341898,
+                        "x": -128.3177492121866,
+                        "y": 156.97888646523313,
                         "anchor": false,
                         "label": "default",
                         "display_label": "5"
                 },
                 {
                         "id": "6",
-                        "x": 196.7811456555084,
-                        "y": -51.815188447932016,
+                        "x": 174.78596854140923,
+                        "y": -23.419227175180772,
                         "anchor": false,
                         "label": "default",
                         "display_label": "6"
                 },
                 {
                         "id": "7",
-                        "x": -51.048045160952796,
-                        "y": -175.43901606153366,
+                        "x": -63.645469038210756,
+                        "y": -173.2422224640867,
                         "anchor": false,
                         "label": "default",
                         "display_label": "7"
                 },
                 {
                         "id": "8",
-                        "x": -61.28357249151022,
-                        "y": 157.99349525940468,
+                        "x": -42.38555789102728,
+                        "y": 154.1492914714794,
                         "anchor": false,
                         "label": "default",
                         "display_label": "8"
                 },
                 {
                         "id": "9",
-                        "x": 84.46018781558212,
-                        "y": -161.9248952961218,
+                        "x": 84.27555276445506,
+                        "y": -158.47601537902239,
                         "anchor": false,
                         "label": "default",
                         "display_label": "9"
                 },
                 {
                         "id": "10",
-                        "x": 156.0852777251077,
-                        "y": -119.00851890274178,
+                        "x": 150.46377402218653,
+                        "y": -113.1299678878533,
                         "anchor": false,
                         "label": "default",
                         "display_label": "10"
                 },
                 {
                         "id": "11",
-                        "x": -164.17601662005498,
-                        "y": -60.1356122885498,
+                        "x": -162.4492492583445,
+                        "y": -73.46556295336273,
                         "anchor": false,
                         "label": "default",
                         "display_label": "11"
                 },
                 {
                         "id": "12",
-                        "x": 88.54287355697882,
-                        "y": 164.68436043706748,
+                        "x": 78.18129373087342,
+                        "y": 156.70720116607137,
                         "anchor": false,
                         "label": "default",
                         "display_label": "12"
                 },
                 {
                         "id": "13",
-                        "x": -178.52950672495817,
-                        "y": 23.649256374231438,
+                        "x": -181.0160948590188,
+                        "y": 10.222420894660232,
                         "anchor": false,
                         "label": "default",
                         "display_label": "13"
                 },
                 {
                         "id": "14",
-                        "x": 29.45816876469643,
+                        "x": 24.437727305532654,
                         "y": -200.0,
                         "anchor": false,
                         "label": "default",
@@ -635,7 +635,7 @@
                 },
                 {
                         "source": "0",
-                        "target": "8",
+                        "target": "4",
                         "directed": false,
                         "label": "default"
                 },
@@ -646,38 +646,68 @@
                         "label": "default"
                 },
                 {
-                        "source": "0",
-                        "target": "13",
-                        "directed": false,
-                        "label": "default"
-                },
-                {
-                        "source": "0",
-                        "target": "14",
+                        "source": "1",
+                        "target": "2",
                         "directed": false,
                         "label": "default"
                 },
                 {
                         "source": "1",
-                        "target": "7",
+                        "target": "3",
                         "directed": false,
                         "label": "default"
                 },
                 {
                         "source": "1",
-                        "target": "11",
+                        "target": "4",
                         "directed": false,
                         "label": "default"
                 },
                 {
                         "source": "1",
-                        "target": "14",
+                        "target": "8",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "1",
+                        "target": "9",
                         "directed": false,
                         "label": "default"
                 },
                 {
                         "source": "2",
                         "target": "3",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "2",
+                        "target": "4",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "2",
+                        "target": "5",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "2",
+                        "target": "6",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "2",
+                        "target": "12",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "3",
+                        "target": "4",
                         "directed": false,
                         "label": "default"
                 },
@@ -689,7 +719,13 @@
                 },
                 {
                         "source": "3",
-                        "target": "9",
+                        "target": "5",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "3",
+                        "target": "7",
                         "directed": false,
                         "label": "default"
                 },
@@ -700,14 +736,50 @@
                         "label": "default"
                 },
                 {
+                        "source": "3",
+                        "target": "10",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "3",
+                        "target": "12",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
                         "source": "4",
-                        "target": "11",
+                        "target": "5",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "4",
+                        "target": "6",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "4",
+                        "target": "7",
                         "directed": false,
                         "label": "default"
                 },
                 {
                         "source": "4",
                         "target": "13",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "4",
+                        "target": "14",
+                        "directed": false,
+                        "label": "default"
+                },
+                {
+                        "source": "5",
+                        "target": "6",
                         "directed": false,
                         "label": "default"
                 },
@@ -718,32 +790,32 @@
                         "label": "default"
                 },
                 {
-                        "source": "8",
-                        "target": "13",
+                        "source": "6",
+                        "target": "8",
                         "directed": false,
                         "label": "default"
                 },
                 {
-                        "source": "8",
-                        "target": "14",
+                        "source": "6",
+                        "target": "9",
                         "directed": false,
                         "label": "default"
                 },
                 {
-                        "source": "9",
+                        "source": "6",
                         "target": "10",
                         "directed": false,
                         "label": "default"
                 },
                 {
                         "source": "9",
-                        "target": "14",
+                        "target": "11",
                         "directed": false,
                         "label": "default"
                 },
                 {
-                        "source": "11",
-                        "target": "13",
+                        "source": "9",
+                        "target": "14",
                         "directed": false,
                         "label": "default"
                 }
