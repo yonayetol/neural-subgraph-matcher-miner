@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pdf-lib/dist/pdf-lib.min.js"></script>
-    <title>Combined Graph Visualization - Target vs Query</title>
+    <title>Target Graph with Subgraph Highlighted</title>
     <style>
         :root {
             /* Color Palette - Light Theme */
@@ -498,180 +498,147 @@
         // Sample 7-node directed graph data
         const GRAPH_DATA = {
   "metadata": {
-    "title": "Combined Graph - Target vs Query (Match)",
-    "nodeCount": 21,
-    "edgeCount": 41,
+    "title": "Target Graph with Subgraph Highlighted (Match)",
+    "nodeCount": 15,
+    "edgeCount": 32,
     "isDirected": false,
-    "density": 0.19523809523809524
+    "density": 0.3047619047619048
   },
   "nodes": [
     {
       "id": "0",
-      "x": -189.10422234883913,
-      "y": 86.88971486534325,
+      "x": 10.895777651160863,
+      "y": 186.88971486534325,
       "anchor": false,
-      "label": "Target: default",
-      "display_label": "0"
+      "label": "Subgraph: default",
+      "display_label": "0",
+      "color": "rgba(255, 0, 0, 0.8)"
     },
     {
       "id": "1",
-      "x": -25.046135433271246,
-      "y": -57.83694689184623,
+      "x": 174.95386456672875,
+      "y": 42.16305310815377,
       "anchor": false,
-      "label": "Target: default",
-      "display_label": "1"
+      "label": "Subgraph: default",
+      "display_label": "1",
+      "color": "rgba(255, 0, 0, 0.8)"
     },
     {
       "id": "2",
-      "x": -292.77595092879096,
-      "y": -190.83764703494887,
+      "x": -92.77595092879099,
+      "y": -90.83764703494886,
       "anchor": false,
-      "label": "Target: default",
-      "display_label": "2"
+      "label": "Subgraph: default",
+      "display_label": "2",
+      "color": "rgba(255, 0, 0, 0.8)"
     },
     {
       "id": "3",
-      "x": -312.8605370951555,
-      "y": -40.06755926855743,
+      "x": -112.86053709515551,
+      "y": 59.93244073144257,
       "anchor": false,
-      "label": "Target: default",
-      "display_label": "3"
+      "label": "Subgraph: default",
+      "display_label": "3",
+      "color": "rgba(255, 0, 0, 0.8)"
     },
     {
       "id": "4",
-      "x": -114.54335029961206,
-      "y": -34.47236580792877,
+      "x": 85.45664970038794,
+      "y": 65.52763419207123,
       "anchor": false,
       "label": "Target: default",
-      "display_label": "4"
+      "display_label": "4",
+      "color": "rgba(59, 130, 246, 0.7)"
     },
     {
       "id": "5",
-      "x": -328.31774921218664,
-      "y": 56.97888646523313,
+      "x": -128.3177492121866,
+      "y": 156.97888646523313,
       "anchor": false,
       "label": "Target: default",
-      "display_label": "5"
+      "display_label": "5",
+      "color": "rgba(59, 130, 246, 0.7)"
     },
     {
       "id": "6",
-      "x": -25.214031458590767,
-      "y": -123.41922717518077,
+      "x": 174.78596854140923,
+      "y": -23.419227175180772,
       "anchor": false,
-      "label": "Target: default",
-      "display_label": "6"
+      "label": "Subgraph: default",
+      "display_label": "6",
+      "color": "rgba(255, 0, 0, 0.8)"
     },
     {
       "id": "7",
-      "x": -263.64546903821076,
-      "y": -273.2422224640867,
+      "x": -63.645469038210756,
+      "y": -173.2422224640867,
       "anchor": false,
       "label": "Target: default",
-      "display_label": "7"
+      "display_label": "7",
+      "color": "rgba(59, 130, 246, 0.7)"
     },
     {
       "id": "8",
-      "x": -242.38555789102728,
-      "y": 54.14929147147939,
+      "x": -42.38555789102728,
+      "y": 154.1492914714794,
       "anchor": false,
       "label": "Target: default",
-      "display_label": "8"
+      "display_label": "8",
+      "color": "rgba(59, 130, 246, 0.7)"
     },
     {
       "id": "9",
-      "x": -115.72444723554494,
-      "y": -258.4760153790224,
+      "x": 84.27555276445506,
+      "y": -158.47601537902239,
       "anchor": false,
       "label": "Target: default",
-      "display_label": "9"
+      "display_label": "9",
+      "color": "rgba(59, 130, 246, 0.7)"
     },
     {
       "id": "10",
-      "x": -49.53622597781347,
-      "y": -213.1299678878533,
+      "x": 150.46377402218653,
+      "y": -113.1299678878533,
       "anchor": false,
-      "label": "Target: default",
-      "display_label": "10"
+      "label": "Subgraph: default",
+      "display_label": "10",
+      "color": "rgba(255, 0, 0, 0.8)"
     },
     {
       "id": "11",
-      "x": -362.4492492583445,
-      "y": -173.46556295336273,
+      "x": -162.4492492583445,
+      "y": -73.46556295336273,
       "anchor": false,
       "label": "Target: default",
-      "display_label": "11"
+      "display_label": "11",
+      "color": "rgba(59, 130, 246, 0.7)"
     },
     {
       "id": "12",
-      "x": -121.81870626912658,
-      "y": 56.70720116607137,
+      "x": 78.18129373087342,
+      "y": 156.70720116607137,
       "anchor": false,
       "label": "Target: default",
-      "display_label": "12"
+      "display_label": "12",
+      "color": "rgba(59, 130, 246, 0.7)"
     },
     {
       "id": "13",
-      "x": -381.01609485901884,
-      "y": -89.77757910533977,
+      "x": -181.0160948590188,
+      "y": 10.222420894660232,
       "anchor": false,
       "label": "Target: default",
-      "display_label": "13"
+      "display_label": "13",
+      "color": "rgba(59, 130, 246, 0.7)"
     },
     {
       "id": "14",
-      "x": -175.56227269446734,
-      "y": -300.0,
+      "x": 24.437727305532654,
+      "y": -200.0,
       "anchor": false,
       "label": "Target: default",
-      "display_label": "14"
-    },
-    {
-      "id": "0",
-      "x": 232.6942861550963,
-      "y": 300.0,
-      "anchor": false,
-      "label": "Query: default",
-      "display_label": "0"
-    },
-    {
-      "id": "1",
-      "x": 348.5552531917042,
-      "y": -39.33483203971568,
-      "anchor": false,
-      "label": "Query: default",
-      "display_label": "1"
-    },
-    {
-      "id": "2",
-      "x": 199.77722593201983,
-      "y": -71.90929615605882,
-      "anchor": false,
-      "label": "Query: default",
-      "display_label": "2"
-    },
-    {
-      "id": "3",
-      "x": 47.84533031715054,
-      "y": 11.85305235441902,
-      "anchor": false,
-      "label": "Query: default",
-      "display_label": "3"
-    },
-    {
-      "id": "6",
-      "x": 320.2024412121507,
-      "y": 146.58279347893227,
-      "anchor": false,
-      "label": "Query: default",
-      "display_label": "6"
-    },
-    {
-      "id": "10",
-      "x": 50.92546319187841,
-      "y": 252.80828236242317,
-      "anchor": false,
-      "label": "Query: default",
-      "display_label": "10"
+      "display_label": "14",
+      "color": "rgba(59, 130, 246, 0.7)"
     }
   ],
   "edges": [
@@ -866,105 +833,23 @@
       "target": "14",
       "directed": false,
       "label": "default"
-    },
-    {
-      "source": "0",
-      "target": "2",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "0",
-      "target": "10",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "1",
-      "target": "2",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "1",
-      "target": "3",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "2",
-      "target": "3",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "2",
-      "target": "6",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "3",
-      "target": "6",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "3",
-      "target": "10",
-      "directed": false,
-      "label": "default"
-    },
-    {
-      "source": "6",
-      "target": "10",
-      "directed": false,
-      "label": "default"
     }
   ],
   "legend": {
     "nodeTypes": [
       {
-        "label": "Target: gene",
+        "label": "Target nodes",
         "color": "rgba(59, 130, 246, 0.7)"
       },
       {
-        "label": "Target: transcript",
-        "color": "rgba(34, 197, 94, 0.7)"
-      },
-      {
-        "label": "Target: protein",
-        "color": "rgba(245, 101, 101, 0.7)"
-      },
-      {
-        "label": "Query: gene",
-        "color": "rgba(139, 69, 19, 0.7)"
-      },
-      {
-        "label": "Query: transcript",
-        "color": "rgba(75, 0, 130, 0.7)"
-      },
-      {
-        "label": "Query: protein",
-        "color": "rgba(255, 20, 147, 0.7)"
+        "label": "Subgraph nodes",
+        "color": "rgba(255, 0, 0, 0.8)"
       }
     ],
     "edgeTypes": [
       {
-        "label": "Target: transcribed_to",
+        "label": "Edges",
         "color": "rgba(34, 100, 94, 0.7)"
-      },
-      {
-        "label": "Target: translates_to",
-        "color": "rgba(245, 190, 101, 0.7)"
-      },
-      {
-        "label": "Query: transcribed_to",
-        "color": "rgba(0, 100, 0, 0.7)"
-      },
-      {
-        "label": "Query: translates_to",
-        "color": "rgba(255, 69, 0, 0.7)"
       }
     ]
   }

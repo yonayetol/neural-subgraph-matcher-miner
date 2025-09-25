@@ -111,7 +111,7 @@ class SubgraphQueryDemo:
 
     def create_combined_visualization(self, target_data, query_data, result=None):
         """
-        Create a combined HTML file with a single centered graph showing both datasets.
+        Create a combined HTML file showing the target graph with the query subgraph highlighted.
 
         Args:
             target_data: Target graph data
@@ -127,39 +127,31 @@ class SubgraphQueryDemo:
         with open(template_path, 'r', encoding='utf-8') as f:
             template_content = f.read()
 
-        # Create combined graph data by merging both graphs
+        # Create combined graph data: target graph with query nodes highlighted
         combined_nodes = []
         combined_edges = []
 
-        # Add target nodes with offset
-        target_offset_x = -200
-        target_offset_y = -100
+        # Get query node IDs for highlighting
+        query_node_ids = set(node['id'] for node in query_data['nodes'])
+
+        # Add target nodes, highlighting those in query
         for node in target_data['nodes']:
             combined_node = node.copy()
-            combined_node['x'] += target_offset_x
-            combined_node['y'] += target_offset_y
-            combined_node['label'] = f"Target: {node.get('label', 'node')}"
+            if node['id'] in query_node_ids:
+                combined_node['label'] = f"Subgraph: {node.get('label', 'node')}"
+                combined_node['color'] = 'rgba(255, 0, 0, 0.8)'  # Red for subgraph nodes
+            else:
+                combined_node['label'] = f"Target: {node.get('label', 'node')}"
+                combined_node['color'] = 'rgba(59, 130, 246, 0.7)'  # Blue for other nodes
             combined_nodes.append(combined_node)
 
-        # Add query nodes with offset
-        query_offset_x = 200
-        query_offset_y = 100
-        for node in query_data['nodes']:
-            combined_node = node.copy()
-            combined_node['x'] += query_offset_x
-            combined_node['y'] += query_offset_y
-            combined_node['label'] = f"Query: {node.get('label', 'node')}"
-            combined_nodes.append(combined_node)
-
-        # Add edges from both graphs
+        # Add all target edges
         for edge in target_data['edges']:
-            combined_edges.append(edge.copy())
-        for edge in query_data['edges']:
             combined_edges.append(edge.copy())
 
         # Create combined metadata
         combined_metadata = {
-            'title': f"Combined Graph - Target vs Query ({'Match' if result else 'No Match'})",
+            'title': f"Target Graph with Subgraph Highlighted ({'Match' if result else 'No Match'})",
             'nodeCount': len(combined_nodes),
             'edgeCount': len(combined_edges),
             'isDirected': target_data['metadata'].get('isDirected', False),
@@ -169,18 +161,11 @@ class SubgraphQueryDemo:
         # Create combined legend
         combined_legend = {
             'nodeTypes': [
-                {'label': 'Target: gene', 'color': 'rgba(59, 130, 246, 0.7)'},
-                {'label': 'Target: transcript', 'color': 'rgba(34, 197, 94, 0.7)'},
-                {'label': 'Target: protein', 'color': 'rgba(245, 101, 101, 0.7)'},
-                {'label': 'Query: gene', 'color': 'rgba(139, 69, 19, 0.7)'},
-                {'label': 'Query: transcript', 'color': 'rgba(75, 0, 130, 0.7)'},
-                {'label': 'Query: protein', 'color': 'rgba(255, 20, 147, 0.7)'}
+                {'label': 'Target nodes', 'color': 'rgba(59, 130, 246, 0.7)'},
+                {'label': 'Subgraph nodes', 'color': 'rgba(255, 0, 0, 0.8)'}
             ],
             'edgeTypes': [
-                {'label': 'Target: transcribed_to', 'color': 'rgba(34, 100, 94, 0.7)'},
-                {'label': 'Target: translates_to', 'color': 'rgba(245, 190, 101, 0.7)'},
-                {'label': 'Query: transcribed_to', 'color': 'rgba(0, 100, 0, 0.7)'},
-                {'label': 'Query: translates_to', 'color': 'rgba(255, 69, 0, 0.7)'}
+                {'label': 'Edges', 'color': 'rgba(34, 100, 94, 0.7)'}
             ]
         }
 
@@ -214,7 +199,7 @@ class SubgraphQueryDemo:
         # Update the title
         combined_html = combined_html.replace(
             '<title>Interactive Graph Visualizer</title>',
-            '<title>Combined Graph Visualization - Target vs Query</title>'
+            '<title>Target Graph with Subgraph Highlighted</title>'
         )
 
         # Write combined HTML file
