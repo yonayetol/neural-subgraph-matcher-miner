@@ -11,7 +11,7 @@ from subgraph_matching.config import parse_encoder
 from common import utils
 import argparse
 
-def query_subgraph(target_graph, query_graph, threshold=2.5): 
+def query_subgraph(target_graph, query_graph, threshold=0): 
     """
     Check if query_graph is a subgraph of target_graph using the trained model.
 
@@ -39,8 +39,8 @@ def query_subgraph(target_graph, query_graph, threshold=2.5):
                                               method_type=args.method_type)
 
         # Check if there's any alignment above threshold
-        max_alignment = alignment_matrix.max()
-        model_decision = max_alignment <= threshold
+        minLose = alignment_matrix.min()
+        model_decision = minLose <= threshold
 
         # For conformity checking: verify with exact subgraph isomorphism
         from networkx.algorithms import isomorphism
@@ -48,11 +48,9 @@ def query_subgraph(target_graph, query_graph, threshold=2.5):
         exact_result = GM.subgraph_is_isomorphic()
 
         # Log conformity (optional - can be removed for production)
-        if model_decision != exact_result:
-            print(f"Model decision ({model_decision}) differs from exact check ({exact_result}). "
-                  f"Alignment score: {max_alignment:.4f}")
+        print(f"Model decision ({model_decision}) differs from exact check ({exact_result}). "
+                  f"Alignment score: {minLose:.4f}")
 
-        # Return model's decision (neural-based)
         return model_decision
 
     except Exception as e:

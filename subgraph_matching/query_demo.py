@@ -50,7 +50,7 @@ class SubgraphQueryDemo:
         g2_path = os.path.join(graphs_dir, 'G2.pkl') #subgraph of G1
         g3_path = os.path.join(graphs_dir, 'G3.pkl') #non-subgraph
 
-        return pickle.load(open(g1_path, 'rb')), pickle.load(open(g2_path, 'rb'))
+        return pickle.load(open(g1_path, 'rb')), pickle.load(open(g3_path, 'rb'))
 
     def run_query_and_visualize(self):
         """
@@ -65,7 +65,7 @@ class SubgraphQueryDemo:
 
         # Perform subgraph query
         print("\nPerforming subgraph query...")
-        result = query_subgraph(target_graph, query_graph, threshold=2.6)
+        result = query_subgraph(target_graph, query_graph, threshold=0)
         print(f"Query is {'a subgraph' if result else 'NOT a subgraph'} of target")
        
         # Create visualizations
@@ -273,10 +273,10 @@ def main():
 
         try:
             # Kill any existing process on port 10000
-            demo._kill_process_on_port(10000)
+            # demo._kill_process_on_port(10000)
 
             # Start HTTP server
-            server = HTTPServer(('localhost', 10000), SimpleHTTPRequestHandler)
+            server = HTTPServer(('localhost', 10001), SimpleHTTPRequestHandler)
             print("Server started. Press Ctrl+C to stop.")
 
             # Run server in a separate thread to allow graceful shutdown

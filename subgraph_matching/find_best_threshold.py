@@ -27,7 +27,6 @@ def find_best_threshold():
     # Test thresholds from 0 to 10 in steps of 0.1
     thresholds = np.arange(0, 10.1, 0.1)
 
-    max_threshold_with_at_least_1 = None
     best_thresh = 0,0
     for thresh in thresholds:
         # Test G1 + G2 (should be True)
